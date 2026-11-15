@@ -5,6 +5,9 @@ services:
     name: lixeira-inteligente
     runtime: python
     plan: free
+    # Publica sozinho a cada envio para o GitHub (branch main).
+    autoDeploy: true
+    branch: main
     buildCommand: pip install -r requirements.txt
     # 1 processo só: o estado das lixeiras fica na memória e no lixeiras.json.
     startCommand: gunicorn --chdir servidor app:app --workers 1 --threads 8 --bind 0.0.0.0:$PORT
