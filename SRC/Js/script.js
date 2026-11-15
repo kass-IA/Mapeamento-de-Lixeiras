@@ -1153,3 +1153,79 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
     });
   });
 }
+
+
+// ---------- Tutorial "Instalar o app" ----------
+(() => {
+  const botao = $("btn-instalar");
+  const janela = $("tutorial-instalar");
+  const instalarAgora = $("btn-instalar-agora");
+  if (!botao || !janela) return;
+
+  const jaInstalado = () =>
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  // Quem já está usando o app instalado não precisa do botão.
+  if (jaInstalado()) {
+    botao.hidden = true;
+    return;
+  }
+
+  // Abre já na aba do aparelho da pessoa.
+  const ehIphone = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  function mostrarAba(aba) {
+    janela.querySelectorAll("[data-aba]").forEach(b => {
+      b.setAttribute("aria-selected", b.dataset.aba === aba ? "true" : "false");
+    });
+    janela.querySelectorAll("[data-painel]").forEach(p => {
+      p.hidden = p.dataset.painel !== aba;
+    });
+  }
+
+  botao.addEventListener("click", () => {
+    mostrarAba(ehIphone ? "iphone" : "android");
+    if (typeof janela.showModal === "function") {
+      janela.showModal();
+    } else {
+      janela.setAttribute("open", "");
+    }
+  });
+
+  janela.addEventListener("click", evento => {
+    const aba = evento.target.closest("[data-aba]");
+    if (aba) mostrarAba(aba.dataset.aba);
+
+    // Fecha no X ou tocando fora da caixa.
+    if (evento.target.closest("[data-fechar]") || evento.target === janela) {
+      janela.close?.();
+      janela.removeAttribute("open");
+    }
+  });
+
+  // Android/Chrome: guarda o pedido de instalação para o botão "Instalar agora".
+  let pedidoInstalacao = null;
+
+  window.addEventListener("beforeinstallprompt", evento => {
+    evento.preventDefault();
+    pedidoInstalacao = evento;
+    if (instalarAgora) instalarAgora.hidden = false;
+  });
+
+  instalarAgora?.addEventListener("click", async () => {
+    if (!pedidoInstalacao) return;
+    pedidoInstalacao.prompt();
+    const { outcome } = await pedidoInstalacao.userChoice;
+    pedidoInstalacao = null;
+    instalarAgora.hidden = true;
+    if (outcome === "accepted") {
+      janela.close?.();
+      log("App instalado! Procure o ícone “Lixeiras” na tela inicial.");
+    }
+  });
+
+  window.addEventListener("appinstalled", () => {
+    botao.hidden = true;
+  });
+})();

@@ -2857,3 +2857,243 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
+
+
+/* =========================================================
+   BOTÃO "INSTALAR APP" + TUTORIAL
+   ========================================================= */
+.welcome-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.instalar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 20px;
+  border: 1.5px solid rgba(23, 77, 56, 0.25);
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--green-900);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.2s, transform 0.2s, border-color 0.2s;
+}
+
+.instalar-btn:hover {
+  border-color: var(--green-700);
+  background: #fff;
+  transform: translateY(-2px);
+}
+
+.instalar-btn[hidden] {
+  display: none;
+}
+
+/* Janela do tutorial */
+.tutorial {
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 22px;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(18, 60, 45, 0.30);
+}
+
+.tutorial::backdrop {
+  background: rgba(18, 40, 30, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.tutorial[open] {
+  animation: tutorial-entrar 0.25s ease;
+}
+
+@keyframes tutorial-entrar {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+}
+
+.tutorial-topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tutorial-topo img {
+  flex-shrink: 0;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(18, 60, 45, 0.18);
+}
+
+.tutorial-topo h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+
+.tutorial-topo p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tutorial-fechar {
+  align-self: flex-start;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--green-50);
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tutorial-instalar-agora {
+  width: 100%;
+  height: 46px;
+  margin-bottom: 14px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--green-700), var(--green-950));
+  box-shadow: 0 6px 16px rgba(23, 77, 56, 0.3);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tutorial-instalar-agora[hidden] {
+  display: none;
+}
+
+/* Abas Android / iPhone */
+.tutorial-abas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: var(--green-50);
+}
+
+.tutorial-abas button {
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tutorial-abas button[aria-selected="true"] {
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(18, 60, 45, 0.12);
+  color: var(--green-900);
+}
+
+/* Passos */
+.tutorial-passos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tutorial-passos[hidden] {
+  display: none;
+}
+
+.tutorial-passos li {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.passo-num {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--green-100);
+  color: var(--green-800);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.tutorial-passos b {
+  font-size: 14px;
+}
+
+.tutorial-passos p {
+  margin: 3px 0 0;
+  color: #5d6d63;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.tutorial-passos code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--green-50);
+  color: var(--green-900);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.tecla {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  padding: 0 5px;
+  border: 1px solid #d7e5dc;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 0 #d7e5dc;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.passo-final {
+  border-color: #b5dcc1;
+  background: var(--green-50);
+}
+
+.passo-final .passo-num {
+  background: #46bd79;
+  color: #fff;
+}
+
+.tutorial-dica {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}

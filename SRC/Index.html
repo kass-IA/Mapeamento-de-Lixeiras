@@ -44,9 +44,16 @@
             Acompanhe as lixeiras e identifique onde a coleta é necessária.
           </p>
 
-          <a href="#monitoramento" class="welcome-button">
-            Ver mapa ao vivo <span class="btn-arrow">→</span>
-          </a>
+          <div class="welcome-acoes">
+            <a href="#monitoramento" class="welcome-button">
+              Ver mapa ao vivo <span class="btn-arrow">→</span>
+            </a>
+
+            <!-- Abre o tutorial de instalação (some se o app já estiver instalado) -->
+            <button type="button" class="instalar-btn" id="btn-instalar">
+              <span aria-hidden="true">📲</span> Instalar app
+            </button>
+          </div>
         </div>
       </section>
 
@@ -304,6 +311,94 @@
       </div>
     </main>
   </div>
+
+  <!-- ========== TUTORIAL: INSTALAR O APP ========== -->
+  <dialog class="tutorial" id="tutorial-instalar" aria-labelledby="tutorial-titulo">
+    <div class="tutorial-topo">
+      <img src="images/app/icon-192.png" alt="" width="52" height="52">
+      <div>
+        <h2 id="tutorial-titulo">Instale o app Lixeiras</h2>
+        <p>Fica na tela inicial do celular e abre como um aplicativo.</p>
+      </div>
+      <button type="button" class="tutorial-fechar" data-fechar aria-label="Fechar">✕</button>
+    </div>
+
+    <!-- Atalho: só aparece quando o Android permite instalar com 1 toque -->
+    <button type="button" class="tutorial-instalar-agora" id="btn-instalar-agora" hidden>
+      📲 Instalar agora
+    </button>
+
+    <div class="tutorial-abas" role="tablist">
+      <button type="button" role="tab" aria-selected="true" data-aba="android">🤖 Android</button>
+      <button type="button" role="tab" aria-selected="false" data-aba="iphone">🍎 iPhone</button>
+    </div>
+
+    <!-- ANDROID -->
+    <ol class="tutorial-passos" data-painel="android">
+      <li>
+        <span class="passo-num">1</span>
+        <div>
+          <b>Abra no Google Chrome</b>
+          <p>Abra <code>lixeira-inteligente.onrender.com</code> no <b>Chrome</b>. Em outros navegadores o caminho pode mudar.</p>
+        </div>
+      </li>
+      <li>
+        <span class="passo-num">2</span>
+        <div>
+          <b>Toque nos 3 pontinhos <span class="tecla">⋮</span></b>
+          <p>Ficam no <b>canto superior direito</b> da tela.</p>
+        </div>
+      </li>
+      <li>
+        <span class="passo-num">3</span>
+        <div>
+          <b>Toque em “Instalar app”</b>
+          <p>Em alguns celulares aparece como <b>“Adicionar à tela inicial”</b>. Depois confirme em <b>Instalar</b>.</p>
+        </div>
+      </li>
+      <li class="passo-final">
+        <span class="passo-num">✓</span>
+        <div>
+          <b>Pronto!</b>
+          <p>O ícone do caminhão aparece na tela inicial com o nome <b>Lixeiras</b>. É só tocar para abrir.</p>
+        </div>
+      </li>
+    </ol>
+
+    <!-- IPHONE -->
+    <ol class="tutorial-passos" data-painel="iphone" hidden>
+      <li>
+        <span class="passo-num">1</span>
+        <div>
+          <b>Abra no Safari</b>
+          <p>No iPhone precisa ser o <b>Safari</b> (o navegador da bússola).</p>
+        </div>
+      </li>
+      <li>
+        <span class="passo-num">2</span>
+        <div>
+          <b>Toque em Compartilhar <span class="tecla">⬆︎</span></b>
+          <p>É o quadrado com a seta para cima, na barra de baixo.</p>
+        </div>
+      </li>
+      <li>
+        <span class="passo-num">3</span>
+        <div>
+          <b>“Adicionar à Tela de Início”</b>
+          <p>Role a lista até achar essa opção e toque em <b>Adicionar</b>.</p>
+        </div>
+      </li>
+      <li class="passo-final">
+        <span class="passo-num">✓</span>
+        <div>
+          <b>Pronto!</b>
+          <p>O app <b>Lixeiras</b> aparece na tela de início.</p>
+        </div>
+      </li>
+    </ol>
+
+    <p class="tutorial-dica">💡 Não aparece “Instalar app”? Atualize o Chrome e abra o site pelo endereço com <b>https</b>.</p>
+  </dialog>
 
   <script src="Js/script.js"></script>
 
