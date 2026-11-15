@@ -39,7 +39,38 @@ def estaticos(arquivo):
 # Mapa
 @app.get("/api/mapa")
 def get_mapa():
-    return jsonify(mapa.estado)
+    agora = time.time()
+
+    with mapa.lock:
+        for lixeira in mapa.estado["lixeiras"]:
+            lixeira["sensor_online"] = mapa.sensor_online(lixeira, agora)
+
+        resposta = dict(mapa.estado)
+        resposta["esp32"] = mapa.resumo_esp32(agora)
+        return jsonify(resposta)
+
+
+# Liga/desliga o uso do sensor ESP32 no site.
+# Corpo: {"ativo": true} ou {"ativo": false}
+@app.post("/api/sensor")
+def ligar_sensor():
+    dados = request.get_json(silent=True) or {}
+
+    if not isinstance(dados.get("ativo"), bool):
+        return jsonify({"erro": "Envie {\"ativo\": true/false}"}), 400
+
+    with mapa.lock:
+        mapa.estado["sensor_ativo"] = dados["ativo"]
+
+        # Ao ligar, começa a contagem de "esvaziou" do zero, para não
+        # disparar o caminhão por causa de leituras antigas.
+        if dados["ativo"]:
+            for lixeira in mapa.estado["lixeiras"]:
+                lixeira["baixas_seguidas"] = 0
+                lixeira["pico"] = lixeira.get("nivel", 0)
+
+        mapa.salvar(mapa.estado)
+        return jsonify(mapa.resumo_esp32(time.time()))
 
 
 # Escolhe em quais pontos há lixeira (um ou vários).
@@ -72,7 +103,9 @@ def selecionar_ponto():
     return jsonify(mapa.estado)
 
 
-# Recebe a leitura do ESP32
+# Recebe a leitura do ESP32.
+# Corpo: {"id": 1, "nivel": 85}  -> id = número do ponto onde a lixeira está.
+# Opcional: "distancia_cm" (só para aparecer no histórico/depuração).
 @app.post("/api/leitura")
 def leitura():
     dados = request.get_json(silent=True) or {}
@@ -80,25 +113,64 @@ def leitura():
     if "nivel" not in dados:
         return jsonify({"erro": "Nível não informado"}), 400
 
+    try:
+        nivel = int(round(float(dados["nivel"])))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Nível inválido"}), 400
+
+    agora = time.time()
+
+    try:
+        distancia = float(dados["distancia_cm"]) if "distancia_cm" in dados else None
+    except (TypeError, ValueError):
+        distancia = None
+
     with mapa.lock:
-        # Sem "id", a leitura vai para a primeira lixeira (a do sensor).
+        lixeiras = mapa.estado["lixeiras"]
+
+        # Sempre anota que o ESP32 falou com o site (para o botão mostrar
+        # "conectado"), mas só usa a leitura se a chave estiver ligada.
+        mapa.registrar_contato_esp32(dados.get("id"), nivel, distancia, agora)
+
+        if not mapa.sensor_ativo():
+            return jsonify({
+                "ok": True,
+                "ativo": False,
+                "ignorado": True,
+                "mensagem": "Sensor desligado no site. Ligue a chave 'Sensor ESP32'."
+            })
+
         if "id" in dados:
-            lixeira = mapa.achar(dados["id"])
+            try:
+                id_ = int(dados["id"])
+            except (TypeError, ValueError):
+                return jsonify({"erro": "id inválido"}), 400
+
+            lixeira = mapa.achar(id_)
+
+            # O sensor está num ponto que ainda não foi marcado no site:
+            # marca sozinho para a lixeira física aparecer no mapa.
+            if not lixeira and id_ in mapa.PONTOS:
+                pontos = mapa.estado.get("pontos_selecionados", []) + [id_]
+                mapa.definir_pontos(mapa.estado, pontos)
+                lixeira = mapa.achar(id_)
         else:
-            lixeiras = mapa.estado["lixeiras"]
+            # Sem "id": vai para a primeira lixeira marcada.
             lixeira = lixeiras[0] if lixeiras else None
 
         if not lixeira:
-            abort(404)
+            return jsonify({"erro": "Lixeira não encontrada"}), 404
 
-        try:
-            mapa.registrar_nivel(lixeira, dados["nivel"])
-        except (TypeError, ValueError):
-            return jsonify({"erro": "Nível inválido"}), 400
-
+        esvaziou = mapa.registrar_leitura_sensor(lixeira, nivel, agora)
         mapa.salvar(mapa.estado)
 
-    return jsonify(lixeira)
+    return jsonify({
+        "ok": True,
+        "ativo": True,
+        "id": lixeira["id"],
+        "nivel": lixeira["nivel"],
+        "esvaziou": esvaziou
+    })
 
 
 # Confirma a coleta
@@ -125,9 +197,11 @@ def simular():
         if not lixeiras:
             return jsonify({"erro": "Nenhuma lixeira posicionada"}), 404
 
-        # Enche todas as lixeiras posicionadas.
+        # Enche as lixeiras posicionadas (as com sensor ligado usam o valor real).
+        agora = time.time()
         for lixeira in lixeiras:
-            mapa.registrar_nivel(lixeira, lixeira["nivel"] + 25)
+            if not mapa.sensor_online(lixeira, agora):
+                mapa.registrar_nivel(lixeira, lixeira["nivel"] + 25)
 
         mapa.salvar(mapa.estado)
 
@@ -177,7 +251,12 @@ def simulador():
         if SIMULAR_SENSOR:
             with mapa.lock:
                 # Cada lixeira enche num ritmo diferente.
+                agora = time.time()
                 for lixeira in mapa.estado["lixeiras"]:
+                    # Lixeira com sensor ligado: o nível vem do ESP32.
+                    if mapa.sensor_online(lixeira, agora):
+                        continue
+
                     aumento = random.randint(0, 4)
                     mapa.registrar_nivel(
                         lixeira,

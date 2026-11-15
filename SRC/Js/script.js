@@ -777,6 +777,8 @@ function atualizarLegenda() {
 
      offline = false;
      atualizarTudo();
+     atualizarChaveSensor(dados.esp32);
+     verificarSensores();
    } catch (erro) {
      if (!offline) {
        log(
@@ -1032,7 +1034,7 @@ function desenharDock() {
       }).join("");
 
       const rotulos = lixeiras.map(l =>
-        `<span>P${l.ponto} · ${limitarNivel(l.nivel)}%</span>`
+        `<span>${l.sensor_online ? "📡 " : ""}P${l.ponto} · ${limitarNivel(l.nivel)}%</span>`
       ).join("");
 
       html = `
@@ -1229,3 +1231,130 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
     botao.hidden = true;
   });
 })();
+
+
+// ---------- Sensor físico (ESP32) ----------
+// O servidor conta quantas vezes o sensor percebeu a lixeira sendo esvaziada
+// ("coletas_sensor"). Quando esse número aumenta, o caminhão vai até ela
+// para mostrar a coleta no mapa.
+const coletasVistas = {};
+const sensorEstavaOnline = {};
+let primeiraLeituraSensores = true;
+
+function verificarSensores() {
+  lixeiras.forEach(l => {
+    if (!l.sensor) return;
+
+    const id = l.id;
+    const coletas = Number(l.coletas_sensor) || 0;
+
+    // Sensor ficou online / offline.
+    const online = Boolean(l.sensor_online);
+    // (Se a chave foi desligada de propósito, não avisa "sem sinal".)
+    if (!primeiraLeituraSensores && esp32Info?.ativo && sensorEstavaOnline[id] !== undefined && sensorEstavaOnline[id] !== online) {
+      log(online
+        ? `📡 Sensor da lixeira P${l.ponto} conectado.`
+        : `⚠️ Sensor da lixeira P${l.ponto} sem sinal.`);
+    }
+    sensorEstavaOnline[id] = online;
+
+    // Lixeira esvaziada de verdade → caminhão vai buscar.
+    if (coletasVistas[id] === undefined) {
+      coletasVistas[id] = coletas; // só registra ao abrir a página
+    } else if (coletas > coletasVistas[id]) {
+      coletasVistas[id] = coletas;
+      log(`🧹 Lixeira P${l.ponto} foi esvaziada (sensor). Caminhão a caminho!`);
+      despachar([id]);
+    }
+  });
+
+  primeiraLeituraSensores = false;
+}
+
+
+// ---------- Chave "Sensor ESP32" (liga/desliga a conexão) ----------
+let esp32Info = null;
+let enviandoSensor = false;
+
+function textoTempo(segundos) {
+  if (segundos < 60) return `${segundos}s`;
+  if (segundos < 3600) return `${Math.floor(segundos / 60)} min`;
+  return `${Math.floor(segundos / 3600)} h`;
+}
+
+function atualizarChaveSensor(info) {
+  if (info) esp32Info = info;
+  const e = esp32Info;
+  if (!e) return;
+
+  let estado, texto, curto;
+
+  if (!e.ativo) {
+    estado = "desligado";
+    texto = e.online
+      ? `Desligado · ESP32 enviando dados (P${e.ponto})`
+      : "Desligado";
+    curto = "ESP32";
+  } else if (e.online) {
+    estado = "conectado";
+    texto = `Conectado · P${e.ponto} · ${e.nivel}%`;
+    curto = "Online";
+  } else if (e.segundos == null) {
+    estado = "aguardando";
+    texto = "Ligado · aguardando o ESP32…";
+    curto = "Aguard.";
+  } else {
+    estado = "sem-sinal";
+    texto = `Ligado · sem sinal há ${textoTempo(e.segundos)}`;
+    curto = "Sem sinal";
+  }
+
+  const card = $("sensor-card");
+  const chave = $("sensor-esp32");
+  const status = $("sensor-status");
+  const dock = $("dock-esp32");
+
+  if (card) card.dataset.estado = estado;
+  if (status) status.textContent = texto;
+  if (chave && !enviandoSensor) chave.checked = e.ativo;
+
+  if (dock) {
+    dock.dataset.estado = estado;
+    dock.setAttribute("aria-pressed", e.ativo ? "true" : "false");
+    dock.title = `Sensor ESP32: ${texto}`;
+    $("dock-esp32-texto").textContent = curto;
+  }
+}
+
+async function definirSensor(ativo) {
+  if (enviandoSensor) return;
+  enviandoSensor = true;
+
+  // Mostra na hora, sem esperar o servidor.
+  atualizarChaveSensor({ ...(esp32Info || {}), ativo, segundos: esp32Info?.segundos ?? null });
+
+  try {
+    const info = await api("/api/sensor", "POST", { ativo });
+    enviandoSensor = false;
+    atualizarChaveSensor(info);
+    log(ativo
+      ? (info.online ? "📡 Sensor ESP32 ligado e conectado." : "📡 Sensor ESP32 ligado. Aguardando o ESP32…")
+      : "Sensor ESP32 desligado. As lixeiras voltam para a simulação.");
+    await carregar();
+  } catch (erro) {
+    console.error("Erro ao ligar/desligar o sensor:", erro);
+    log("Não foi possível mudar o sensor ESP32. Confira a conexão com o servidor.");
+    if ($("sensor-esp32")) $("sensor-esp32").checked = !ativo;
+  } finally {
+    enviandoSensor = false;
+    atualizarChaveSensor();
+  }
+}
+
+$("sensor-esp32")?.addEventListener("change", evento => {
+  definirSensor(evento.target.checked);
+});
+
+$("dock-esp32")?.addEventListener("click", () => {
+  definirSensor(!(esp32Info && esp32Info.ativo));
+});

@@ -214,6 +214,10 @@
                   <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
                   <span>Auto</span>
                 </button>
+                <button type="button" class="dock-btn dock-esp32" id="dock-esp32" aria-pressed="false" data-estado="desligado">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1.4"/></svg>
+                  <span id="dock-esp32-texto">ESP32</span>
+                </button>
               </div>
             </div>
           </div>
@@ -273,6 +277,20 @@
                   <small>Envia o caminhão ao chegar em 80%</small>
                 </span>
                 <input type="checkbox" id="auto" class="switch-input">
+                <span class="switch" aria-hidden="true"></span>
+              </label>
+
+              <!-- Liga/desliga a conexão com o sensor físico (ESP32) -->
+              <label class="auto sensor-card" id="sensor-card" data-estado="desligado">
+                <span class="auto-icon sensor-icone" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1.4"/></svg>
+                  <i class="sensor-ponto"></i>
+                </span>
+                <span class="auto-text">
+                  <b>Sensor ESP32</b>
+                  <small id="sensor-status">Desligado</small>
+                </span>
+                <input type="checkbox" id="sensor-esp32" class="switch-input">
                 <span class="switch" aria-hidden="true"></span>
               </label>
             </div>

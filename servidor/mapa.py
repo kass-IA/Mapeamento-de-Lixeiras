@@ -60,6 +60,20 @@ def salvar(dados):
         )
 
 
+# Campos que só existem nas lixeiras com sensor ESP32.
+CAMPOS_SENSOR = ("sensor", "ultima_leitura", "pico", "baixas_seguidas", "coletas_sensor")
+
+# Regras para perceber que a lixeira foi esvaziada de verdade:
+# estava com pelo menos ESVAZIAR_DE % e caiu para no máximo ESVAZIAR_ATE %,
+# confirmado em LEITURAS_CONFIRMACAO leituras seguidas (evita leitura falsa).
+ESVAZIAR_DE = 50
+ESVAZIAR_ATE = 15
+LEITURAS_CONFIRMACAO = 2
+
+# Sem leitura há mais que isso (segundos) = sensor offline.
+SENSOR_OFFLINE_APOS = 30
+
+
 def nova_lixeira(ponto, anterior=None):
     """Cria (ou atualiza) a lixeira de um ponto.
 
@@ -77,7 +91,13 @@ def nova_lixeira(ponto, anterior=None):
         "y": PONTOS[ponto]["y"],
         "ponto": ponto,
         "nivel": nivel,
-        "historico": anterior.get("historico", [nivel])[-12:]
+        "historico": anterior.get("historico", [nivel])[-12:],
+        # Dados do sensor físico (ESP32), mantidos ao trocar os pontos.
+        **{
+            chave: anterior[chave]
+            for chave in CAMPOS_SENSOR
+            if chave in anterior
+        }
     }
 
 
@@ -152,3 +172,69 @@ def registrar_nivel(lixeira, nivel):
     lixeira["nivel"] = nivel
     lixeira.setdefault("historico", []).append(nivel)
     lixeira["historico"] = lixeira["historico"][-12:]
+
+
+def registrar_leitura_sensor(lixeira, nivel, agora):
+    """Registra uma leitura do ESP32 e diz se a lixeira acabou de ser esvaziada."""
+    nivel = max(0, min(100, int(nivel)))
+
+    lixeira["sensor"] = True
+    lixeira["ultima_leitura"] = agora
+    lixeira["pico"] = max(int(lixeira.get("pico", 0)), nivel)
+
+    esvaziou = False
+
+    if lixeira["pico"] >= ESVAZIAR_DE and nivel <= ESVAZIAR_ATE:
+        lixeira["baixas_seguidas"] = int(lixeira.get("baixas_seguidas", 0)) + 1
+
+        if lixeira["baixas_seguidas"] >= LEITURAS_CONFIRMACAO:
+            esvaziou = True
+            lixeira["coletas_sensor"] = int(lixeira.get("coletas_sensor", 0)) + 1
+            lixeira["pico"] = nivel
+            lixeira["baixas_seguidas"] = 0
+    else:
+        lixeira["baixas_seguidas"] = 0
+
+    registrar_nivel(lixeira, nivel)
+    return esvaziou
+
+
+def sensor_ativo():
+    """Chave "Sensor ESP32" do site (ligado/desligado)."""
+    return bool(estado.get("sensor_ativo", False))
+
+
+def sensor_online(lixeira, agora):
+    """Lixeira com sensor ligado no site E recebendo leituras."""
+    ultima = lixeira.get("ultima_leitura")
+    return (
+        sensor_ativo()
+        and bool(ultima)
+        and (agora - float(ultima)) <= SENSOR_OFFLINE_APOS
+    )
+
+
+def registrar_contato_esp32(id_, nivel, distancia, agora):
+    """Guarda o último contato do ESP32, mesmo com a chave desligada."""
+    estado["esp32"] = {
+        "ultimo_contato": agora,
+        "ponto": id_,
+        "nivel": nivel,
+        "distancia_cm": distancia,
+    }
+
+
+def resumo_esp32(agora):
+    """Situação do ESP32 para mostrar no site."""
+    contato = estado.get("esp32") or {}
+    ultimo = contato.get("ultimo_contato")
+    segundos = None if not ultimo else int(agora - float(ultimo))
+
+    return {
+        "ativo": sensor_ativo(),
+        "online": segundos is not None and segundos <= SENSOR_OFFLINE_APOS,
+        "segundos": segundos,
+        "ponto": contato.get("ponto"),
+        "nivel": contato.get("nivel"),
+        "distancia_cm": contato.get("distancia_cm"),
+    }
