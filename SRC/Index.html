@@ -1,0 +1,320 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#174d38">
+  <title>Lixeira Inteligente | Monitoramento</title>
+  <meta name="description" content="Monitoramento das lixeiras e despacho do caminhão de coleta.">
+
+  <!-- App instalável (Android, iPhone e computador) -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="32x32" href="images/app/favicon-32.png">
+  <link rel="apple-touch-icon" href="images/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Lixeiras">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Começa a baixar o caminhão 3D logo que a página abre -->
+  <link rel="preload" href="images/caminhao_verde_leve.glb" as="fetch" crossorigin="anonymous">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main id="inicio">
+
+      <!-- Banner de apresentação -->
+      <section class="welcome">
+        <div>
+          <span class="welcome-tag">
+            ♻ GESTÃO INTELIGENTE DE RESÍDUOS
+          </span>
+
+          <h2>
+            Cidade<br>
+            mais limpa<br>
+            e inteligente
+          </h2>
+
+          <p>
+            Acompanhe as lixeiras e identifique onde a coleta é necessária.
+          </p>
+
+          <a href="#monitoramento" class="welcome-button">
+            Ver mapa ao vivo <span class="btn-arrow">→</span>
+          </a>
+        </div>
+      </section>
+
+      <!-- CABEÇALHO DO PAINEL -->
+      <div class="content">
+
+        <!-- RESUMO OPERACIONAL -->
+        <section class="section-heading">
+          <div>
+            <h2>Resumo operacional</h2>
+            <small id="atualizacao">Última atualização: --</small>
+          </div>
+          <span class="live-badge">
+            <span class="status-dot"></span>
+            Monitoramento ativo
+          </span>
+        </section>
+
+        <section class="dashboard">
+
+          <article class="card">
+            <div class="card-top">
+              <span class="card-icon green-icon">▤</span>
+              <span class="card-label">TOTAL</span>
+            </div>
+            <small>Lixeiras monitoradas</small>
+            <b id="d-total">0</b>
+            <p class="card-note">Lixeiras cadastradas</p>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <span class="card-icon attention-icon">!</span>
+              <span class="card-label">QUASE CHEIAS</span>
+            </div>
+            <small>Lixeiras quase cheias</small>
+            <b id="d-atencao">0</b>
+            <p class="card-note">Nível elevado de resíduos</p>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <span class="card-icon full-icon">↑</span>
+              <span class="card-label">CRÍTICO</span>
+            </div>
+            <small>Lixeiras cheias</small>
+            <b id="d-cheia">0</b>
+            <p class="card-note">Coleta prioritária</p>
+          </article>
+
+          <article class="card">
+            <div class="card-top">
+              <span class="card-icon blue-icon">%</span>
+              <span class="card-label">OCUPAÇÃO</span>
+            </div>
+            <small>Ocupação média</small>
+            <b id="d-media">0%</b>
+            <p class="card-note">Média das lixeiras</p>
+          </article>
+
+        </section>
+
+        <!-- ÁREA DE MONITORAMENTO -->
+        <section class="workspace" id="monitoramento">
+
+          <div class="panel map-panel">
+            <div class="map-wrapper">
+              <!-- Botão de tela cheia -->
+              <button type="button" class="map-fullscreen" id="btn-tela-cheia"
+                      aria-label="Abrir mapa em tela cheia" title="Tela cheia">
+                <svg class="icone-abrir" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+                <svg class="icone-fechar" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
+              </button>
+
+              <svg
+                id="mapa"
+                viewBox="0 0 810 810"
+                role="img"
+                aria-label="Mapa das ruas, lixeiras e rota de coleta">
+
+                <image
+                  id="mapa-base"
+                  href="images/mapa_base.svg"
+                  x="0" y="0" width="810" height="810"
+                  preserveAspectRatio="none">
+                </image>
+
+                <polyline id="rota" points="" class="rota"></polyline>
+                <g id="camada-lixeiras"></g>
+                <g id="caminhao" transform="translate(30,140)">
+                  <text class="truck" text-anchor="middle" y="9">🚛</text>
+                </g>
+
+              </svg>
+            </div>
+
+            <!-- Legenda interativa: destaca a faixa do nível atual -->
+            <div class="map-legend" id="legenda">
+              <div class="legend-meter" aria-hidden="true">
+                <div class="legend-meter-fill" id="legenda-barra"></div>
+                <span class="legend-meter-mark" style="left:20%"></span>
+                <span class="legend-meter-mark" style="left:50%"></span>
+                <span class="legend-meter-mark" style="left:80%"></span>
+              </div>
+
+              <div class="legend-items">
+                <span class="legend-item" data-faixa="vazia">
+                  <i class="legend-dot dot-blue"></i>
+                  <span class="legend-text">Vazia<small>0–19%</small></span>
+                </span>
+                <span class="legend-item" data-faixa="normal">
+                  <i class="legend-dot dot-green"></i>
+                  <span class="legend-text">Normal<small>20–49%</small></span>
+                </span>
+                <span class="legend-item" data-faixa="atencao">
+                  <i class="legend-dot dot-yellow"></i>
+                  <span class="legend-text">Quase cheia<small>50–79%</small></span>
+                </span>
+                <span class="legend-item" data-faixa="cheia">
+                  <i class="legend-dot dot-red"></i>
+                  <span class="legend-text">Cheia<small>80–100%</small></span>
+                </span>
+              </div>
+
+              <b class="legend-value" id="legenda-valor" aria-live="polite">--%</b>
+            </div>
+
+            <!-- Painel rápido junto ao mapa (celular e tela cheia):
+                 sensores + pontos + botões, sem precisar rolar a página -->
+            <div class="map-dock" id="map-dock">
+              <div class="dock-linha dock-linha-sensores">
+                <span class="dock-titulo">Sensores</span>
+                <div class="dock-sensores" id="dock-sensores" aria-live="polite"></div>
+              </div>
+
+              <div class="dock-linha dock-linha-pontos">
+                <span class="dock-titulo">Pontos</span>
+                <div class="dock-pontos" id="dock-pontos">
+                  <button type="button" data-ponto="1" aria-pressed="false">P1</button>
+                  <button type="button" data-ponto="2" aria-pressed="false">P2</button>
+                  <button type="button" data-ponto="3" aria-pressed="false">P3</button>
+                  <button type="button" data-ponto="4" aria-pressed="false">P4</button>
+                  <button type="button" data-ponto="5" aria-pressed="false">P5</button>
+                </div>
+              </div>
+
+              <div class="dock-botoes">
+                <button type="button" class="dock-btn simular" id="dock-simular" onclick="encherUma()">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+                  <span>Simular</span>
+                </button>
+                <button type="button" class="dock-btn despachar" id="dock-despachar" onclick="despachar()">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+                  <span id="dock-despachar-texto">Despachar</span>
+                  <b class="dock-fila" id="dock-fila" hidden></b>
+                </button>
+                <button type="button" class="dock-btn dock-auto" id="dock-auto" aria-pressed="false">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
+                  <span>Auto</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coluna de controles e painéis -->
+          <aside class="right-column">
+
+            <div class="controls-panel panel">
+              <h2 class="controls-titulo">Operações</h2>
+
+              <!-- Pontos com lixeira: uma linha, pode marcar vários -->
+              <fieldset class="seletor-pontos" id="seletor-pontos">
+                <legend class="sr-only">Pontos com lixeira</legend>
+                <span class="pontos-rotulo" aria-hidden="true">Pontos</span>
+
+                <div class="pontos-grade">
+                  <label class="ponto-chip" title="Ponto 1"><input type="checkbox" value="1"><span>1</span></label>
+                  <label class="ponto-chip" title="Ponto 2"><input type="checkbox" value="2"><span>2</span></label>
+                  <label class="ponto-chip" title="Ponto 3"><input type="checkbox" value="3"><span>3</span></label>
+                  <label class="ponto-chip" title="Ponto 4"><input type="checkbox" value="4"><span>4</span></label>
+                  <label class="ponto-chip" title="Ponto 5"><input type="checkbox" value="5"><span>5</span></label>
+                </div>
+
+                <button type="button" class="pontos-todos" data-acao="alternar"
+                        title="Marcar ou desmarcar todos">Todos</button>
+              </fieldset>
+
+              <div class="controls-buttons">
+                <button class="button secondary action-btn" id="btn-simular" type="button" onclick="encherUma()" title="+25% em cada lixeira">
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+                  </span>
+                  <span class="btn-text">
+                    <b>Simular lixo</b>
+                  </span>
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                </button>
+
+                <button class="button primary action-btn" id="btn-despachar" type="button" onclick="despachar()">
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
+                  </span>
+                  <span class="btn-text">
+                    <b>Despachar</b>
+                    <small id="btn-despachar-sub">Enviar caminhão</small>
+                  </span>
+                  <span class="btn-spinner" aria-hidden="true"></span>
+                </button>
+              </div>
+
+              <label class="auto">
+                <span class="auto-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
+                </span>
+                <span class="auto-text">
+                  <b>Despacho automático</b>
+                  <small>Envia o caminhão ao chegar em 80%</small>
+                </span>
+                <input type="checkbox" id="auto" class="switch-input">
+                <span class="switch" aria-hidden="true"></span>
+              </label>
+            </div>
+
+
+            <section class="panel" id="fila-painel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Coleta</h2>
+                  <p>Lixeiras aguardando atendimento.</p>
+                </div>
+                <span class="heading-icon">🚛</span>
+              </div>
+              <div class="queue-content" id="fila"></div>
+            </section>
+
+            <section class="panel" id="eventos">
+              <div class="panel-heading">
+                <div>
+                  <h2>Histórico</h2>
+                  <p>Atividade do sistema.</p>
+                </div>
+                <span class="heading-icon">◷</span>
+              </div>
+              <ul id="log"></ul>
+            </section>
+
+          </aside>
+        </section>
+
+        <footer class="footer">
+          <span>♻ Lixeira Inteligente</span>
+          <span>Tecnologia, eficiência e sustentabilidade.</span>
+        </footer>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="Js/script.js"></script>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+  }
+}
+</script>
+
+  <script type="module" src="Js/caminhao3d.js"></script>
+</body>
+</html>

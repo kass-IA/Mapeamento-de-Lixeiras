@@ -1,0 +1,13 @@
+# Configuração para hospedar no Render (https://render.com).
+# No Render: New > Blueprint > escolha este repositório. Ele lê este arquivo sozinho.
+services:
+  - type: web
+    name: lixeira-inteligente
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # 1 processo só: o estado das lixeiras fica na memória e no lixeiras.json.
+    startCommand: gunicorn --chdir servidor app:app --workers 1 --threads 8 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7

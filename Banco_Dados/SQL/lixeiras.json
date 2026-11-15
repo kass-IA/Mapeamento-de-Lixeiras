@@ -1,0 +1,112 @@
+{
+  "sala": {
+    "largura": 810,
+    "altura": 810
+  },
+  "base": {
+    "x": 110,
+    "y": 77
+  },
+  "lixeiras": [
+    {
+      "id": 1,
+      "nome": "Lixeira Ponto 1",
+      "local": "Ponto 1",
+      "x": 740,
+      "y": 142,
+      "ponto": 1,
+      "nivel": 0,
+      "historico": [
+        0,
+        25,
+        50,
+        0,
+        25,
+        50,
+        75,
+        100,
+        100,
+        0
+      ]
+    },
+    {
+      "id": 2,
+      "nome": "Lixeira Ponto 2",
+      "local": "Ponto 2",
+      "x": 59,
+      "y": 321,
+      "ponto": 2,
+      "nivel": 0,
+      "historico": [
+        0,
+        25,
+        50,
+        75,
+        100,
+        100,
+        0
+      ]
+    },
+    {
+      "id": 3,
+      "nome": "Lixeira Ponto 3",
+      "local": "Ponto 3",
+      "x": 407,
+      "y": 321,
+      "ponto": 3,
+      "nivel": 0,
+      "historico": [
+        0,
+        25,
+        50,
+        75,
+        100,
+        100,
+        0
+      ]
+    },
+    {
+      "id": 4,
+      "nome": "Lixeira Ponto 4",
+      "local": "Ponto 4",
+      "x": 750,
+      "y": 321,
+      "ponto": 4,
+      "nivel": 0,
+      "historico": [
+        0,
+        25,
+        50,
+        75,
+        100,
+        100,
+        0
+      ]
+    },
+    {
+      "id": 5,
+      "nome": "Lixeira Ponto 5",
+      "local": "Ponto 5",
+      "x": 59,
+      "y": 489,
+      "ponto": 5,
+      "nivel": 100,
+      "historico": [
+        0,
+        25,
+        50,
+        75,
+        100,
+        100
+      ]
+    }
+  ],
+  "ponto_selecionado": 1,
+  "pontos_selecionados": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ]
+}

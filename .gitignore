@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+
+# Modelo 3D original (67 MB). O site usa a versão leve caminhao_verde_leve.glb.
+SRC/images/caminhao_verde.glb

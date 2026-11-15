@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="810" height="810" viewBox="0 0 810 810">
+  <title>Rede de ruas do mapa 7 x 7 m</title>
+  <desc>Camada transparente de referência para o planejamento de rotas. As coordenadas seguem visualmente o arquivo 5.svg; a escala interna ainda é aproximada.</desc>
+  <g id="rede-ruas" fill="none" stroke="#00AEEF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.8">
+    <!-- Rua 1: estação, curva e trecho superior -->
+    <path id="rua-1" d="M 18,80 H 240 Q 252,80 252,94 V 144 Q 252,160 270,160 H 780"/>
+    <!-- Rua 2 -->
+    <path id="rua-2" d="M 20,310 H 790"/>
+    <!-- Rua 3 -->
+    <path id="rua-3" d="M 20,458 H 790"/>
+    <!-- Rua 4 -->
+    <path id="rua-4" d="M 20,605 H 790"/>
+    <!-- Rua 5 -->
+    <path id="rua-5" d="M 20,752 H 790"/>
+    <!-- Via vertical central: conectada às ruas horizontais -->
+    <path id="rua-vertical" d="M 408,145 V 780"/>
+  </g>
+  <g id="cruzamentos" fill="#FFFFFF" stroke="#007DA8" stroke-width="4">
+    <circle id="cruzamento-1" cx="408" cy="160" r="6"/>
+    <circle id="cruzamento-2" cx="408" cy="310" r="6"/>
+    <circle id="cruzamento-3" cx="408" cy="458" r="6"/>
+    <circle id="cruzamento-4" cx="408" cy="605" r="6"/>
+    <circle id="cruzamento-5" cx="408" cy="752" r="6"/>
+  </g>
+</svg>
