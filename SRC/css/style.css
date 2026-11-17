@@ -880,9 +880,11 @@ h1 {
 
 /* Melhorar a visibilidade dos ícones das lixeiras */
 
+/* O ícone já é desenhado em preto no script.js (sem filtro, que o
+   Safari/celular não aplica em elementos SVG). */
 .icone-lixeira {
   opacity: 1;
-  filter: brightness(0);
+  pointer-events: none;
 }
 
 
@@ -3236,5 +3238,114 @@ a {
   .sensor-card .sensor-ponto,
   .dock-esp32::after {
     animation: none !important;
+  }
+}
+
+
+/* =========================================================
+   TELA TRAVADA NA LARGURA (sem arrastar para os lados)
+   "clip" corta o que passar da tela sem quebrar o mapa
+   preso no topo (position: sticky), ao contrário de "hidden".
+   ========================================================= */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+@media (max-width: 900px) {
+  /* No celular: só rola para cima e para baixo, sem zoom de pinça */
+  html,
+  body {
+    touch-action: pan-y;
+  }
+}
+
+
+/* =========================================================
+   BOTÃO "LIMPAR FILA" (só aparece com viagens agendadas)
+   ========================================================= */
+.limpar-fila {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 10px 0 2px;
+  padding: 10px 14px;
+  border: 1px solid #f3c7c7;
+  border-radius: 12px;
+  background: #fff5f5;
+  color: #b23434;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+}
+
+.limpar-fila:hover {
+  background: #ffe9e9;
+}
+
+.limpar-fila:active {
+  transform: scale(0.98);
+}
+
+.limpar-fila:focus-visible {
+  outline: 3px solid rgba(227, 77, 77, 0.35);
+  outline-offset: 2px;
+}
+
+.limpar-fila svg,
+.dock-btn.dock-limpar svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+
+.limpar-fila[hidden],
+.dock-btn[hidden] {
+  display: none;
+}
+
+.dock-btn.dock-limpar {
+  background: #fff5f5;
+  color: #b23434;
+  box-shadow: inset 0 0 0 1px #f3c7c7;
+}
+
+/* Com o "Limpar fila" visível, o painel do mapa ganha uma coluna */
+.dock-botoes:has(.dock-limpar:not([hidden])) {
+  grid-template-columns: 1fr 1.3fr 0.85fr 0.85fr 0.95fr;
+}
+
+@media (max-width: 900px) {
+  .map-panel .dock-btn.dock-limpar {
+    flex-direction: column;
+    gap: 4px;
+    height: auto;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: #b23434;
+    font-size: 11px;
+  }
+
+  .map-panel .dock-btn.dock-limpar svg {
+    width: 54px;
+    height: 54px;
+    padding: 17px;
+    background: #fff5f5;
+    box-shadow: inset 0 0 0 1.5px #f3c7c7, 0 3px 8px rgba(227, 77, 77, 0.12);
+  }
+
+  /* Cinco botões: aproxima um pouco para caber na tela do celular */
+  .map-panel .dock-botoes:has(.dock-limpar:not([hidden])) {
+    gap: 10px;
   }
 }

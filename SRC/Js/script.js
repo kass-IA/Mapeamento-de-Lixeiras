@@ -108,16 +108,24 @@ function desenharMapa() {
           stroke-width="3"
         ></circle>
 
-        <!-- Ícone preto, ampliado -->
-        <image
+        <!-- Ícone de lixeira desenhado já em preto (mesmo desenho de
+             images/lixeira.svg). Antes era a imagem branca escurecida
+             com filtro CSS, que o Safari/celular ignora: ficava branco
+             sobre o círculo branco. -->
+        <g
           class="icone-lixeira"
-          href="images/lixeira.svg"
-          x="${lixeira.x - 22}"
-          y="${lixeira.y - 22}"
-          width="44"
-          height="44"
-          preserveAspectRatio="xMidYMid meet"
-        ></image>
+          transform="translate(${lixeira.x - 22},${lixeira.y - 22}) scale(${44 / 736})"
+          fill="none"
+          stroke="#000"
+          stroke-width="26"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="318" y="178" width="100" height="50" rx="14"/>
+          <rect x="217" y="229" width="301" height="50" rx="25"/>
+          <path d="M242 292 L242 517 Q242 557 282 557 L453 557 Q493 557 493 517 L493 292"/>
+          <path d="M305 355V505M368 355V505M431 355V505"/>
+        </g>
 
       </g>
     `;
@@ -305,118 +313,6 @@ function desenharMapa() {
  // ---------- Movimento e despacho do caminhão ----------
 
 
-function mover(x, y) {
-  return new Promise(resolve => {
-    const inicioX = truck.x;
-    const inicioY = truck.y;
-
-    const distancia = Math.hypot(
-      x - inicioX,
-      y - inicioY
-    );
-
-    if (distancia < 0.001) {
-      resolve();
-      return;
-    }
-
-    const duracao = distancia * 9 + 100;
-    const inicioTempo = performance.now();
-
-    const angulo = Math.atan2(
-      -(y - inicioY),
-      x - inicioX
-    );
-
-    truck.angulo = angulo;
-
-    const direcao = x >= inicioX ? -1 : 1;
-
-    function animar(tempoAtual) {
-      const progresso = Math.min(
-        1,
-        (tempoAtual - inicioTempo) / duracao
-      );
-
-      truck.x = inicioX + (x - inicioX) * progresso;
-      truck.y = inicioY + (y - inicioY) * progresso;
-
-      const caminhao = $("caminhao");
-
-      if (caminhao) {
-        caminhao.setAttribute(
-          "transform",
-          `translate(${truck.x},${truck.y}) scale(${direcao},1)`
-        );
-      }
-
-      if (typeof window.moverCaminhao3D === "function") {
-        window.moverCaminhao3D(truck.x, truck.y, angulo);
-      }
-
-      if (progresso < 1) {
-        requestAnimationFrame(animar);
-      } else {
-        resolve();
-      }
-    }
-
-    requestAnimationFrame(animar);
-  });
-}
-
-
-// Gira o caminhão parado até o ângulo indicado (0 = virado para a direita).
-function girar(alvo) {
-  return new Promise(resolve => {
-    const inicio = truck.angulo || 0;
-
-    // Gira pelo menor caminho.
-    let delta = alvo - inicio;
-    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
-
-    if (Math.abs(delta) < 0.001) {
-      truck.angulo = alvo;
-      resolve();
-      return;
-    }
-
-    const duracao = 500;
-    const inicioTempo = performance.now();
-
-    function animar(tempoAtual) {
-      const progresso = Math.min(1, (tempoAtual - inicioTempo) / duracao);
-      truck.angulo = inicio + delta * progresso;
-
-      if (typeof window.moverCaminhao3D === "function") {
-        window.moverCaminhao3D(truck.x, truck.y, truck.angulo);
-      }
-
-      if (progresso < 1) {
-        requestAnimationFrame(animar);
-      } else {
-        truck.angulo = alvo;
-
-        // Caminhão provisório (2D) também fica virado para a direita.
-        $("caminhao")?.setAttribute(
-          "transform",
-          `translate(${truck.x},${truck.y}) scale(${Math.cos(alvo) >= 0 ? -1 : 1},1)`
-        );
-        resolve();
-      }
-    }
-
-    requestAnimationFrame(animar);
-  });
-}
-
-// Move o caminhão por vários pontos da rua.
-async function moverPelaRota(pontos) {
-  for (const ponto of pontos) {
-    await mover(ponto.x, ponto.y);
-  }
-}
-
 // ---------- Rede de ruas e rotas ----------
 // Todas as coordenadas seguem o meio das pistas (linha tracejada do desenho).
 
@@ -506,37 +402,280 @@ function planejarViagem(alvos) {
   return { paradas, trechos, volta };
 }
 
-// Desenha a linha azul da posição atual do caminhão até a última parada.
-function desenharRotaRestante(trechos) {
+// ---------- Viagem ao vivo (a mesma para todos os aparelhos) ----------
+// Quem aperta "Despachar" calcula a rota com horários e envia ao servidor.
+// O servidor guarda a hora de saída; cada aparelho desenha o caminhão
+// conforme o relógio do servidor. Por isso ele anda junto em todas as telas,
+// até para quem abrir o site no meio da viagem.
+
+const PAUSA_COLETA = 700;  // ms parado em cada lixeira
+const TEMPO_GIRO = 500;    // ms girando na base no fim
+
+// Diferença entre o relógio deste aparelho e o do servidor.
+const relogio = { diferenca: 0, atraso: Infinity };
+
+function agoraServidor() {
+  return Date.now() + relogio.diferenca;
+}
+
+function acertarRelogio(agoraMsServidor, enviadoEm, recebidoEm) {
+  if (!agoraMsServidor) return;
+
+  const atraso = recebidoEm - enviadoEm;
+  // Usa a resposta mais rápida (mais precisa); aos poucos aceita novas.
+  relogio.atraso += 20;
+  if (atraso <= relogio.atraso) {
+    relogio.atraso = atraso;
+    relogio.diferenca = agoraMsServidor - (enviadoEm + recebidoEm) / 2;
+  }
+}
+
+// Transforma a rota em pontos com horário (ms desde a saída).
+function montarViagem(alvos) {
+  const { paradas, trechos, volta } = planejarViagem(alvos);
+  if (!paradas.length) return null;
+
+  const pontos = [{ x: BASE.x, y: BASE.y, t: 0 }];
+  let t = 0;
+
+  const andar = lista => lista.forEach(p => {
+    const ultimo = pontos[pontos.length - 1];
+    const distancia = Math.hypot(p.x - ultimo.x, p.y - ultimo.y);
+    if (distancia < 0.001) return;
+    t += distancia * 9 + 100;
+    pontos.push({ x: p.x, y: p.y, t: Math.round(t) });
+  });
+
+  andar(trechoBase());
+
+  const paradasComHora = trechos.map(({ lixeira, trecho }) => {
+    andar(trecho);
+    const chegada = Math.round(t);
+    // Fica parado um pouco na lixeira (mesmo lugar, horário depois).
+    t += PAUSA_COLETA;
+    const ultimo = pontos[pontos.length - 1];
+    pontos.push({ x: ultimo.x, y: ultimo.y, t: Math.round(t) });
+    return { id: lixeira.id, t: chegada };
+  });
+
+  const fimRota = pontos.length - 1;
+  andar(volta);
+
+  return {
+    pontos,
+    paradas: paradasComHora,
+    duracao: Math.round(t + TEMPO_GIRO),
+    fim_rota: fimRota
+  };
+}
+
+// Viagem que está sendo mostrada agora.
+let viagem = null;
+let viagensPendentes = 0;
+
+// Prepara a viagem recebida do servidor (direção de cada trecho etc.).
+function receberViagem(dados) {
+  const pontos = dados.pontos;
+  const angulos = [];
+  const direcoes = [];
+  let angulo = 0;
+  let direcao = -1;
+
+  for (let i = 0; i < pontos.length - 1; i++) {
+    const dx = pontos[i + 1].x - pontos[i].x;
+    const dy = pontos[i + 1].y - pontos[i].y;
+
+    // Trecho parado (coleta): mantém a direção de antes.
+    if (Math.hypot(dx, dy) >= 0.001) {
+      angulo = Math.atan2(-dy, dx);
+      direcao = dx >= 0 ? -1 : 1;
+    }
+    angulos.push(angulo);
+    direcoes.push(direcao);
+  }
+
+  const decorrido = agoraServidor() - dados.inicio;
+
+  return {
+    ...dados,
+    angulos,
+    direcoes,
+    anguloFinal: angulo,
+    // Coletas que já tinham acontecido antes de abrirmos a viagem.
+    avisadas: new Set(
+      dados.paradas.filter(p => decorrido >= p.t).map(p => p.id)
+    ),
+    nomes: Object.fromEntries(
+      dados.paradas.map(p => {
+        const l = lixeiras.find(x => x.id === p.id);
+        return [p.id, l ? l.nome : `Lixeira ${p.id}`];
+      })
+    )
+  };
+}
+
+// Recebe o estado do servidor (consulta ou resposta do despacho).
+function sincronizarViagem(dadosViagem, pendentes, agoraMsServidor) {
+  if (typeof pendentes === "number") viagensPendentes = pendentes;
+
+  if (dadosViagem) {
+    if (!viagem || viagem.id !== dadosViagem.id) {
+      const nova = receberViagem(dadosViagem);
+      const decorrido = agoraServidor() - nova.inicio;
+      const n = nova.paradas.length;
+
+      if (decorrido < 3000) {
+        log(
+          n === 1
+            ? `Caminhão a caminho de ${nova.nomes[nova.paradas[0].id]}.`
+            : `Caminhão saiu para ${n} coletas: ` +
+              nova.paradas.map(p => nova.nomes[p.id]).join(" → ") + "."
+        );
+      } else {
+        log("Caminhão em rota (acompanhando ao vivo).");
+      }
+
+      viagem = nova;
+      truck.ocupado = true;
+      atualizarBotoes();
+      requestAnimationFrame(animarViagem);
+    }
+  } else if (viagem) {
+    // Resposta antiga (pedida antes desta viagem existir): ignora.
+    if (agoraMsServidor && agoraMsServidor < viagem.criada) return;
+    terminarViagem();
+  }
+
+  atualizarBotoes();
+}
+
+// Posição do caminhão num instante da viagem.
+function posicaoNaViagem(v, decorrido) {
+  const p = v.pontos;
+
+  if (decorrido <= 0) {
+    return { x: p[0].x, y: p[0].y, angulo: 0, direcao: -1, trecho: -1 };
+  }
+
+  const ultimo = p.length - 1;
+
+  if (decorrido >= p[ultimo].t) {
+    // Chegou na base: gira até ficar de frente para a rua.
+    const progresso = Math.min(1, (decorrido - p[ultimo].t) / TEMPO_GIRO);
+    let delta = 0 - v.anguloFinal;
+    delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+    const angulo = v.anguloFinal + delta * progresso;
+    return {
+      x: p[ultimo].x,
+      y: p[ultimo].y,
+      angulo,
+      direcao: progresso >= 1 ? -1 : v.direcoes[ultimo - 1],
+      trecho: ultimo
+    };
+  }
+
+  let i = 0;
+  while (i < ultimo - 1 && decorrido >= p[i + 1].t) i++;
+
+  const duracao = p[i + 1].t - p[i].t;
+  const progresso = duracao > 0 ? (decorrido - p[i].t) / duracao : 1;
+
+  return {
+    x: p[i].x + (p[i + 1].x - p[i].x) * progresso,
+    y: p[i].y + (p[i + 1].y - p[i].y) * progresso,
+    angulo: v.angulos[i],
+    direcao: v.direcoes[i],
+    trecho: i
+  };
+}
+
+function posicionarCaminhao(x, y, angulo, direcao) {
+  truck.x = x;
+  truck.y = y;
+  truck.angulo = angulo;
+
+  $("caminhao")?.setAttribute(
+    "transform",
+    `translate(${x},${y}) scale(${direcao},1)`
+  );
+
+  if (typeof window.moverCaminhao3D === "function") {
+    window.moverCaminhao3D(x, y, angulo);
+  }
+}
+
+// Linha azul da posição atual até a última lixeira.
+function desenharRotaRestante(v, pos) {
   const linha = $("rota");
   if (!linha) return;
 
+  if (!v || pos.trecho >= v.fim_rota) {
+    linha.setAttribute("points", "");
+    return;
+  }
+
   const pontos = semRepetidos([
-    { x: truck.x, y: truck.y },
-    ...trechos.flatMap(t => t.trecho)
+    { x: pos.x, y: pos.y },
+    ...v.pontos.slice(pos.trecho + 1, v.fim_rota + 1)
   ]);
 
-  linha.setAttribute(
-    "points",
-    trechos.length ? pontos.map(p => `${p.x},${p.y}`).join(" ") : ""
-  );
+  linha.setAttribute("points", pontos.map(p => `${p.x},${p.y}`).join(" "));
+}
+
+function animarViagem() {
+  const v = viagem;
+  if (!v) return;
+
+  const decorrido = agoraServidor() - v.inicio;
+  const pos = posicaoNaViagem(v, decorrido);
+
+  posicionarCaminhao(pos.x, pos.y, pos.angulo, pos.direcao);
+  desenharRotaRestante(v, pos);
+
+  // Avisa cada coleta quando o caminhão chega na lixeira.
+  v.paradas.forEach((parada, i) => {
+    if (decorrido >= parada.t && !v.avisadas.has(parada.id)) {
+      v.avisadas.add(parada.id);
+      log(`${v.nomes[parada.id]} coletada (${i + 1}/${v.paradas.length}).`);
+
+      // Mostra o nível zerado na hora (o servidor zera ao mesmo tempo).
+      const lixeira = lixeiras.find(l => l.id === parada.id);
+      if (lixeira) lixeira.nivel = 0;
+      atualizarTudo();
+      setTimeout(carregar, 300);
+    }
+  });
+
+  if (decorrido >= v.duracao) {
+    terminarViagem();
+    return;
+  }
+
+  requestAnimationFrame(animarViagem);
+}
+
+function terminarViagem() {
+  if (!viagem) return;
+
+  viagem = null;
+  truck.ocupado = false;
+  posicionarCaminhao(BASE.x, BASE.y, 0, -1);
+  desenharRotaRestante(null);
+
+  log("Caminhão voltou para a base.");
+  atualizarTudo();
+  atualizarBotoes();
+  carregar();
 }
 
 // automatico = true quando chamado pelo despacho automático
-// (não repete avisos no histórico a cada 2 segundos).
-// Viagens pedidas enquanto o caminhão estava em rota.
-let viagensPendentes = 0;
+// (não repete avisos no histórico a cada consulta).
+// chave = identifica o pedido, para dois aparelhos não pedirem a mesma coisa.
+let enviandoDespacho = false;
 
-async function despachar(ids, automatico = false) {
-  if (truck.ocupado) {
-    if (!automatico) {
-      // Guarda o pedido: o caminhão sai de novo assim que voltar.
-      viagensPendentes++;
-      log(`Nova coleta agendada (${viagensPendentes} na fila). O caminhão sai assim que voltar.`);
-      atualizarBotoes();
-    }
-    return;
-  }
+async function despachar(ids, automatico = false, chave) {
+  if (automatico && truck.ocupado) return;
+  if (enviandoDespacho) return;
 
   // Manual: vai em todas as lixeiras posicionadas, com qualquer nível.
   // Automático: só nas que chegaram a 80%.
@@ -548,9 +687,9 @@ async function despachar(ids, automatico = false) {
         : true
   );
 
-  const { paradas, trechos, volta } = planejarViagem(alvos);
+  const plano = montarViagem(alvos);
 
-  if (!paradas.length) {
+  if (!plano && !truck.ocupado) {
     if (!automatico) {
       log("Nenhuma lixeira posicionada. Marque um ou mais pontos.");
       sacudir($("btn-despachar"));
@@ -558,58 +697,61 @@ async function despachar(ids, automatico = false) {
     return;
   }
 
-  truck.ocupado = true;
-  atualizarBotoes();
+  await pedirViagem({ ...(plano || {}), ids: ids || null, automatico, chave });
+}
+
+// Apaga as viagens agendadas para todos. A viagem atual termina normalmente.
+async function limparFila() {
+  const botoes = [$("btn-limpar-fila"), $("dock-limpar")];
+  botoes.forEach(b => botaoOcupado(b, true));
 
   try {
+    const resposta = await api("/api/fila/limpar", "POST");
+    viagensPendentes = 0;
     log(
-      paradas.length === 1
-        ? `Caminhão a caminho de ${paradas[0].nome}.`
-        : `Caminhão saiu para ${paradas.length} coletas: ` +
-          paradas.map(l => `Ponto ${l.ponto}`).join(" → ") + "."
+      resposta.removidas
+        ? `Fila zerada: ${resposta.removidas} ${resposta.removidas === 1 ? "viagem cancelada" : "viagens canceladas"}.`
+        : "A fila já estava vazia."
     );
-
-    // Base → cruzamento principal.
-    const saida = trechoBase();
-    desenharRotaRestante([{ trecho: saida }, ...trechos]);
-    await moverPelaRota(saida);
-
-    // Uma parada de cada vez, coletando em cada ponto.
-    for (let i = 0; i < trechos.length; i++) {
-      const { lixeira, trecho } = trechos[i];
-
-      desenharRotaRestante(trechos.slice(i));
-      await moverPelaRota(trecho);
-
-      await api(`/api/coletar/${lixeira.id}`, "POST");
-      await carregar();
-
-      log(`${lixeira.nome} coletada (${i + 1}/${trechos.length}).`);
-    }
-
-    // Volta para a base pelas ruas.
-    desenharRotaRestante([]);
-    await moverPelaRota(volta);
-
-    // Na base, vira o caminhão de frente para a rua (direita),
-    // pronto para sair andando em linha reta.
-    await girar(0);
-
-    log("Caminhão voltou para a base.");
   } catch (erro) {
-    log("Não foi possível concluir a coleta. Confira a conexão com o servidor.");
-    console.error("Erro durante a coleta:", erro);
+    log("Não foi possível limpar a fila.");
+    console.error(erro);
   } finally {
-    desenharRotaRestante([]);
-    truck.ocupado = false;
-    atualizarTudo();
+    botoes.forEach(b => botaoOcupado(b, false));
     atualizarBotoes();
+  }
+}
 
-    // Se pediram mais coletas durante a rota, sai de novo.
-    if (viagensPendentes > 0) {
-      viagensPendentes--;
-      despachar();
+// A viagem acabou e havia coletas agendadas: um aparelho pede a próxima.
+async function despacharDaFila() {
+  if (enviandoDespacho || truck.ocupado) return;
+  const plano = montarViagem(lixeiras);
+  await pedirViagem({ ...(plano || {}), fila: true });
+}
+
+async function pedirViagem(corpo) {
+  enviandoDespacho = true;
+
+  try {
+    const enviadoEm = Date.now();
+    const resposta = await api("/api/despachar", "POST", corpo);
+    acertarRelogio(resposta.agora_ms, enviadoEm, Date.now());
+
+    if (resposta.resultado === "agendada") {
+      log(`Nova coleta agendada (${resposta.viagens_pendentes} na fila). O caminhão sai assim que voltar.`);
+    } else if (resposta.resultado === "vazia" && !corpo.automatico && !corpo.fila) {
+      log("Nenhuma lixeira posicionada. Marque um ou mais pontos.");
+      sacudir($("btn-despachar"));
     }
+
+    sincronizarViagem(resposta.viagem, resposta.viagens_pendentes, resposta.agora_ms);
+  } catch (erro) {
+    if (!corpo.automatico) {
+      log("Não foi possível despachar o caminhão. Confira a conexão com o servidor.");
+    }
+    console.error("Erro ao despachar:", erro);
+  } finally {
+    enviandoDespacho = false;
   }
 }
 
@@ -653,6 +795,14 @@ function atualizarBotoes() {
     fila.hidden = viagensPendentes === 0;
     fila.textContent = `+${viagensPendentes}`;
   }
+
+  // Botão "Limpar fila": só aparece quando há viagens agendadas.
+  const temFila = viagensPendentes > 0;
+  if ($("btn-limpar-fila")) {
+    $("btn-limpar-fila").hidden = !temFila;
+    $("btn-limpar-fila-n").textContent = viagensPendentes;
+  }
+  if ($("dock-limpar")) $("dock-limpar").hidden = !temFila;
 
   $("dock-pontos")?.querySelectorAll("button").forEach(b => {
     b.disabled = truck.ocupado;
@@ -763,7 +913,9 @@ function atualizarLegenda() {
    carregando = true;
 
    try {
+     const enviadoEm = Date.now();
      const dados = await api("/api/mapa");
+     acertarRelogio(dados.agora_ms, enviadoEm, Date.now());
 
      lixeiras = Array.isArray(dados.lixeiras)
        ? dados.lixeiras
@@ -778,7 +930,13 @@ function atualizarLegenda() {
      offline = false;
      atualizarTudo();
      atualizarChaveSensor(dados.esp32);
+     sincronizarViagem(dados.viagem, dados.viagens_pendentes, dados.agora_ms);
      verificarSensores();
+
+     // Viagem acabou e ficaram coletas agendadas: pede a próxima.
+     if (!dados.viagem && dados.viagens_pendentes > 0) {
+       despacharDaFila();
+     }
    } catch (erro) {
      if (!offline) {
        log(
@@ -915,7 +1073,7 @@ function atualizarLegenda() {
    if ($("auto")?.checked) {
      despachar(undefined, true);
    }
- }, 2000);
+ }, 1000);
 
  console.log(
    "Lixeira Inteligente: JavaScript carregado."
@@ -984,7 +1142,11 @@ async function enviarPontos() {
     );
   } catch (erro) {
     console.error("Erro ao mudar os pontos:", erro);
-    log("Não foi possível mudar os pontos das lixeiras.");
+    log(truck.ocupado
+      ? "Aguarde o caminhão voltar para mudar os pontos."
+      : "Não foi possível mudar os pontos das lixeiras.");
+    enviandoPontos = false;
+    carregar();
   } finally {
     enviandoPontos = false;
   }
@@ -1264,7 +1426,7 @@ function verificarSensores() {
     } else if (coletas > coletasVistas[id]) {
       coletasVistas[id] = coletas;
       log(`🧹 Lixeira P${l.ponto} foi esvaziada (sensor). Caminhão a caminho!`);
-      despachar([id]);
+      despachar([id], false, `sensor-${id}-${coletas}`);
     }
   });
 

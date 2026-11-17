@@ -3,7 +3,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#174d38">
   <title>Lixeira Inteligente | Monitoramento</title>
   <meta name="description" content="Monitoramento das lixeiras e despacho do caminhão de coleta.">
@@ -210,6 +210,10 @@
                   <span id="dock-despachar-texto">Despachar</span>
                   <b class="dock-fila" id="dock-fila" hidden></b>
                 </button>
+                <button type="button" class="dock-btn dock-limpar" id="dock-limpar" onclick="limparFila()" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                  <span>Limpar fila</span>
+                </button>
                 <button type="button" class="dock-btn dock-auto" id="dock-auto" aria-pressed="false">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/></svg>
                   <span>Auto</span>
@@ -267,6 +271,12 @@
                   <span class="btn-spinner" aria-hidden="true"></span>
                 </button>
               </div>
+
+              <!-- Aparece só quando há viagens agendadas -->
+              <button type="button" class="limpar-fila" id="btn-limpar-fila" onclick="limparFila()" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+                <span>Limpar fila · <b id="btn-limpar-fila-n">0</b> agendadas</span>
+              </button>
 
               <label class="auto">
                 <span class="auto-icon" aria-hidden="true">

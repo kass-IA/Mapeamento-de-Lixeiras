@@ -11,6 +11,10 @@ const CAMINHO_MODELO = "images/caminhao_verde_leve.glb";
 // Deita o modelo sobre o mapa.
 const ROTACAO_MODELO_X = Math.PI / 2;
 
+// Inclinação do caminhão, como se a câmera olhasse um pouco de lado
+// (0 = visto de cima, achatado; 0.6 ≈ 35°, mostra a lateral e as rodas).
+const INCLINACAO = 0.6;
+
 const mapa = document.getElementById("mapa");
 const moldura = document.querySelector(".map-wrapper");
 
@@ -61,9 +65,32 @@ if (!mapa || !moldura) {
   luz.position.set(100, 200, 300);
   cena.add(luz);
 
-  // Controla a posição e a direção do caminhão.
+  // Posição do caminhão no mapa.
+  const lugar = new THREE.Group();
+  cena.add(lugar);
+
+  // Sombra suave no chão (não inclina junto, fica colada no mapa).
+  const sombra = new THREE.Mesh(
+    new THREE.CircleGeometry(TAMANHO_CAMINHAO * 0.42, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false
+    })
+  );
+  sombra.position.set(0, -TAMANHO_CAMINHAO * 0.12, -20);
+  sombra.visible = false;
+  lugar.add(sombra);
+
+  // Inclina para a frente da tela: mostra a lateral em vez do teto.
+  const inclinacao = new THREE.Group();
+  inclinacao.rotation.x = -INCLINACAO;
+  lugar.add(inclinacao);
+
+  // Controla a direção do caminhão.
   const pivo = new THREE.Group();
-  cena.add(pivo);
+  inclinacao.add(pivo);
 
   // Corrige a orientação original do modelo.
   const orientacao = new THREE.Group();
@@ -142,6 +169,7 @@ if (!mapa || !moldura) {
       });
 
       orientacao.add(modelo);
+      sombra.visible = true;
 
       atualizarPosicao(
         posicao.x,
@@ -175,13 +203,17 @@ if (!mapa || !moldura) {
     anguloAtual = angulo;
 
     // Converte as coordenadas do SVG para o mapa.
-    pivo.position.set(
+    lugar.position.set(
       x,
       TAMANHO_MAPA - y,
       1
     );
 
     pivo.rotation.z = anguloAtual + CORRECAO_ANGULO;
+
+    // Sombra alongada no sentido do caminhão.
+    const deitado = Math.abs(Math.cos(anguloAtual));
+    sombra.scale.set(0.55 + 0.45 * deitado, 0.55 + 0.45 * (1 - deitado), 1);
 
     pedirRender();
   }

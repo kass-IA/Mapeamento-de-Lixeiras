@@ -36,17 +36,199 @@ def estaticos(arquivo):
     return send_from_directory(SRC, arquivo)
 
 
+# ---------- Viagem do caminhão (igual para todos os aparelhos) ----------
+# O site que aperta "Despachar" calcula a rota e manda para cá.
+# O servidor guarda a hora de saída e todos os aparelhos calculam onde o
+# caminhão está a partir dela. Assim ele anda ao mesmo tempo para todo mundo.
+
+# Folga antes da saída, para os outros aparelhos verem a viagem desde o começo.
+ANTECEDENCIA_MS = 800
+MAX_PONTOS_ROTA = 300
+MAX_DURACAO_MS = 10 * 60 * 1000
+MAX_PENDENTES = 20
+
+
+def agora_ms():
+    return int(time.time() * 1000)
+
+
+def avancar_viagem(agora):
+    """Coleta as lixeiras já alcançadas e encerra a viagem que terminou.
+
+    Precisa ser chamada com mapa.lock. Devolve True se algo mudou.
+    """
+    viagem = mapa.estado.get("viagem")
+    if not viagem:
+        return False
+
+    decorrido = agora * 1000 - viagem["inicio"]
+    mudou = False
+
+    for parada in viagem["paradas"]:
+        if not parada.get("coletada") and decorrido >= parada["t"]:
+            lixeira = mapa.achar(parada["id"])
+            if lixeira:
+                mapa.registrar_nivel(lixeira, 0)
+            parada["coletada"] = True
+            mudou = True
+
+    if decorrido >= viagem["duracao"]:
+        mapa.estado["viagem"] = None
+        mudou = True
+
+    return mudou
+
+
+def ler_rota(dados):
+    """Confere a rota enviada pelo site. Devolve (pontos, paradas, duracao, fim_rota) ou None."""
+    pontos = dados.get("pontos")
+    paradas = dados.get("paradas")
+
+    if not isinstance(pontos, list) or not isinstance(paradas, list):
+        return None
+    if not 2 <= len(pontos) <= MAX_PONTOS_ROTA or not paradas:
+        return None
+
+    try:
+        pontos = [
+            {"x": float(p["x"]), "y": float(p["y"]), "t": int(p["t"])}
+            for p in pontos
+        ]
+        paradas = [
+            {"id": int(p["id"]), "t": int(p["t"])}
+            for p in paradas
+        ]
+        duracao = int(dados["duracao"])
+        fim_rota = int(dados.get("fim_rota", len(pontos) - 1))
+    except (TypeError, ValueError, KeyError):
+        return None
+
+    tempos = [p["t"] for p in pontos]
+    if tempos[0] != 0 or tempos != sorted(tempos):
+        return None
+    if not tempos[-1] <= duracao <= MAX_DURACAO_MS:
+        return None
+    if not 0 <= fim_rota < len(pontos):
+        return None
+
+    return pontos, paradas, duracao, fim_rota
+
+
+# Corpo: rota calculada pelo site + {"ids": [..] ou null, "automatico": bool,
+# "fila": bool, "chave": "texto opcional para não repetir o mesmo pedido"}.
+# Resposta: {"resultado": "iniciada" | "agendada" | "ocupado" | "duplicada" | "vazia"}
+@app.post("/api/despachar")
+def despachar():
+    dados = request.get_json(silent=True) or {}
+    automatico = bool(dados.get("automatico"))
+    da_fila = bool(dados.get("fila"))
+    chave = dados.get("chave")
+    chave = str(chave)[:80] if chave else None
+
+    ids = dados.get("ids")
+    if ids is not None:
+        try:
+            ids = [int(i) for i in ids]
+        except (TypeError, ValueError):
+            return jsonify({"erro": "ids inválidos"}), 400
+
+    agora = time.time()
+
+    with mapa.lock:
+        if avancar_viagem(agora):
+            mapa.salvar(mapa.estado)
+
+        pendentes = mapa.estado.setdefault("viagens_pendentes", [])
+        chaves = mapa.estado.setdefault("chaves_despacho", [])
+
+        def responder(resultado, **extra):
+            return jsonify({
+                "resultado": resultado,
+                "viagem": mapa.estado.get("viagem"),
+                "viagens_pendentes": len(pendentes),
+                "agora_ms": agora_ms(),
+                **extra
+            })
+
+        # O mesmo pedido chegou de dois aparelhos (ex.: sensor visto pelos dois).
+        if chave and chave in chaves:
+            return responder("duplicada")
+
+        if mapa.estado.get("viagem"):
+            if automatico or da_fila:
+                return responder("ocupado")
+
+            if len(pendentes) >= MAX_PENDENTES:
+                return responder("ocupado")
+
+            pendentes.append({"ids": ids})
+            if chave:
+                chaves.append(chave)
+                del chaves[:-50]
+            mapa.salvar(mapa.estado)
+            return responder("agendada")
+
+        if da_fila:
+            if not pendentes:
+                return responder("ocupado")
+            pendentes.pop(0)
+
+        rota = ler_rota(dados)
+        if not rota:
+            mapa.salvar(mapa.estado)
+            return responder("vazia")
+
+        pontos, paradas, duracao, fim_rota = rota
+        criada = agora_ms()
+
+        mapa.estado["viagem"] = {
+            "id": f"{criada}-{random.randint(1000, 9999)}",
+            "criada": criada,
+            "inicio": criada + ANTECEDENCIA_MS,
+            "pontos": pontos,
+            "paradas": paradas,
+            "duracao": duracao,
+            "fim_rota": fim_rota,
+        }
+
+        if chave:
+            chaves.append(chave)
+            del chaves[:-50]
+
+        mapa.salvar(mapa.estado)
+        return responder("iniciada")
+
+
+# Apaga as viagens agendadas (vale para todos os aparelhos).
+# A viagem que já está em andamento continua até o fim.
+@app.post("/api/fila/limpar")
+def limpar_fila():
+    with mapa.lock:
+        pendentes = mapa.estado.get("viagens_pendentes") or []
+        removidas = len(pendentes)
+        mapa.estado["viagens_pendentes"] = []
+        mapa.salvar(mapa.estado)
+
+    return jsonify({"removidas": removidas, "viagens_pendentes": 0})
+
+
 # Mapa
 @app.get("/api/mapa")
 def get_mapa():
     agora = time.time()
 
     with mapa.lock:
+        if avancar_viagem(agora):
+            mapa.salvar(mapa.estado)
+
         for lixeira in mapa.estado["lixeiras"]:
             lixeira["sensor_online"] = mapa.sensor_online(lixeira, agora)
 
         resposta = dict(mapa.estado)
+        resposta.pop("chaves_despacho", None)
+        resposta["viagens_pendentes"] = len(mapa.estado.get("viagens_pendentes") or [])
         resposta["esp32"] = mapa.resumo_esp32(agora)
+        resposta["agora_ms"] = agora_ms()
         return jsonify(resposta)
 
 
@@ -97,6 +279,10 @@ def selecionar_ponto():
         return jsonify({"erro": "Ponto inexistente"}), 400
 
     with mapa.lock:
+        avancar_viagem(time.time())
+        if mapa.estado.get("viagem"):
+            return jsonify({"erro": "Aguarde o caminhão voltar para mudar os pontos."}), 409
+
         mapa.definir_pontos(mapa.estado, pontos)
         mapa.salvar(mapa.estado)
 
@@ -247,6 +433,11 @@ def remover(id_):
 def simulador():
     while True:
         time.sleep(5)
+
+        # Faz as coletas da viagem mesmo que ninguém esteja com o site aberto.
+        with mapa.lock:
+            if avancar_viagem(time.time()):
+                mapa.salvar(mapa.estado)
 
         if SIMULAR_SENSOR:
             with mapa.lock:
