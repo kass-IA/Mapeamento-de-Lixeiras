@@ -1469,13 +1469,24 @@ body.caminhao-3d-pronto #caminhao .truck {
   fill: #f39c12;               /* atenção: laranja */
 }
 
-/* Cheia: lixeira toda vermelha, contorno vinho e listras claras */
-.lixeira.cheia .lixo {
-  fill: #c0392b;
+/* Vazia: azul por dentro, contorno preto igual às outras */
+.lixeira.vazia .lixo {
+  fill: #1f1fa8;
 }
 
-.lixeira.cheia .contorno-lixeira {
-  stroke: #6e1a12;
+.lixeira.vazia .listras {
+  stroke: #b3c4ff;
+}
+
+/* Tampa e alça também azuis */
+.lixeira.vazia .tampa {
+  fill: #1f1fa8;
+}
+
+/* Cheia: lixeira toda vermelha, contorno preto e listras claras */
+.lixeira.cheia .lixo,
+.lixeira.cheia .tampa {
+  fill: #c0392b;
 }
 
 .lixeira.cheia .listras {

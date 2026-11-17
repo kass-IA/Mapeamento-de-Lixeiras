@@ -84,6 +84,9 @@ function desenharMapa() {
   const html = lixeiras.map(lixeira => {
     const nivel = limitarNivel(lixeira.nivel);
     const estado = status(nivel);
+    // Vazia (abaixo de 20%): lixeira toda azul, igual à legenda.
+    const vazia = faixa(nivel) === "vazia";
+    const cheiaVisual = estado === "cheia" || vazia;
 
     const classeSelecionada =
       lixeira.id === selecionada ? "selecionada" : "";
@@ -94,7 +97,7 @@ function desenharMapa() {
 
     return `
       <g
-        class="lixeira ${estado} ${classeSelecionada}"
+        class="lixeira ${estado} ${vazia ? "vazia" : ""} ${classeSelecionada}"
         role="button"
         tabindex="0"
         aria-label="${nome}: ${nivel}%"
@@ -130,9 +133,9 @@ function desenharMapa() {
           <rect class="lixo"
             clip-path="url(#clip-lixeira-${Number(lixeira.id)})"
             x="230"
-            y="${557 - 265 * (estado === "cheia" ? 100 : nivel) / 100}"
+            y="${557 - 265 * (cheiaVisual ? 100 : nivel) / 100}"
             width="275"
-            height="${265 * (estado === "cheia" ? 100 : nivel) / 100 + 5}"/>
+            height="${265 * (cheiaVisual ? 100 : nivel) / 100 + 5}"/>
 
           <!-- Contorno, tampa e listras -->
           <g class="contorno-lixeira" fill="none" stroke-width="26"
