@@ -72,6 +72,10 @@
 
  // ---------- Mapa e ícones ----------
 
+// Tamanho do ícone no mapa: a lixeira desenhada tem ~380 de altura
+// em images/lixeira.svg; com esta escala fica com ~36px.
+const ESCALA_ICONE = 36 / 380;
+
 function desenharMapa() {
   const camada = $("camada-lixeiras");
 
@@ -98,33 +102,46 @@ function desenharMapa() {
         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirLixeira(${Number(lixeira.id)})}"
       >
 
-        <!-- Círculo branco atrás da lixeira -->
+        <!-- Área invisível para facilitar o clique/toque -->
         <circle
+          class="area-clique"
           cx="${lixeira.x}"
           cy="${lixeira.y}"
           r="20"
-          fill="#ffffff"
-          stroke="#ffffff"
-          stroke-width="3"
+          fill="transparent"
         ></circle>
 
-        <!-- Ícone de lixeira desenhado já em preto (mesmo desenho de
-             images/lixeira.svg). Antes era a imagem branca escurecida
-             com filtro CSS, que o Safari/celular ignora: ficava branco
-             sobre o círculo branco. -->
+        <!-- Ícone de lixeira (mesmo desenho de images/lixeira.svg):
+             corpo branco que enche de cor conforme o nível.
+             Verde = normal, laranja = atenção, vermelha = cheia. -->
         <g
           class="icone-lixeira"
-          transform="translate(${lixeira.x - 22},${lixeira.y - 22}) scale(${44 / 736})"
-          fill="none"
-          stroke="#000"
-          stroke-width="26"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          transform="translate(${lixeira.x - 367.5 * ESCALA_ICONE},${lixeira.y - 367.5 * ESCALA_ICONE}) scale(${ESCALA_ICONE})"
         >
-          <rect x="318" y="178" width="100" height="50" rx="14"/>
-          <rect x="217" y="229" width="301" height="50" rx="25"/>
-          <path d="M242 292 L242 517 Q242 557 282 557 L453 557 Q493 557 493 517 L493 292"/>
-          <path d="M305 355V505M368 355V505M431 355V505"/>
+          <clipPath id="clip-lixeira-${Number(lixeira.id)}">
+            <path d="M242 292 L242 517 Q242 557 282 557 L453 557 Q493 557 493 517 L493 292 Z"/>
+          </clipPath>
+
+          <!-- Corpo branco -->
+          <path class="corpo-lixeira"
+            d="M242 292 L242 517 Q242 557 282 557 L453 557 Q493 557 493 517 L493 292 Z"/>
+
+          <!-- Lixo dentro: altura proporcional ao nível -->
+          <rect class="lixo"
+            clip-path="url(#clip-lixeira-${Number(lixeira.id)})"
+            x="230"
+            y="${557 - 265 * (estado === "cheia" ? 100 : nivel) / 100}"
+            width="275"
+            height="${265 * (estado === "cheia" ? 100 : nivel) / 100 + 5}"/>
+
+          <!-- Contorno, tampa e listras -->
+          <g class="contorno-lixeira" fill="none" stroke-width="26"
+             stroke-linecap="round" stroke-linejoin="round">
+            <rect class="tampa" x="318" y="178" width="100" height="50" rx="14"/>
+            <rect class="tampa" x="217" y="229" width="301" height="50" rx="25"/>
+            <path d="M242 292 L242 517 Q242 557 282 557 L453 557 Q493 557 493 517 L493 292"/>
+            <path class="listras" d="M305 355V505M368 355V505M431 355V505"/>
+          </g>
         </g>
 
       </g>
@@ -1520,3 +1537,32 @@ $("sensor-esp32")?.addEventListener("change", evento => {
 $("dock-esp32")?.addEventListener("click", () => {
   definirSensor(!(esp32Info && esp32Info.ativo));
 });
+// ---------- Sem zoom acidental no celular ----------
+// O iPhone ignora o "user-scalable=no" da página, então bloqueamos aqui:
+// - pinça (dois dedos) para dar zoom;
+// - toque duplo rápido, que dava zoom ao apertar botões seguidos.
+(function bloquearZoomCelular() {
+  // Pinça no Safari/iPhone
+  ["gesturestart", "gesturechange", "gestureend"].forEach(evento =>
+    document.addEventListener(evento, e => e.preventDefault(), { passive: false })
+  );
+
+  // Dois dedos na tela (outros navegadores)
+  document.addEventListener("touchmove", e => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+
+  // Toque duplo: cancela o zoom, mas o segundo toque continua
+  // funcionando como clique normal no botão.
+  let ultimoToque = 0;
+  document.addEventListener("touchend", e => {
+    const agora = Date.now();
+    if (agora - ultimoToque < 350 && e.changedTouches.length === 1) {
+      e.preventDefault();
+      e.target.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, view: window })
+      );
+    }
+    ultimoToque = agora;
+  }, { passive: false });
+})();

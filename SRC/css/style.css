@@ -1433,45 +1433,77 @@ body.caminhao-3d-pronto #caminhao .truck {
 }
 
 /* Rota com brilho e tracejado "andando" */
+/* Rota do caminhão: mesmo azul, mas com poucos traços (espaço maior) */
 .rota {
   stroke: #2f80ed;
   stroke-width: 4;
-  stroke-dasharray: 10 7;
+  stroke-dasharray: 10 26;
   filter: drop-shadow(0 0 3px rgba(47, 128, 237, 0.55));
-  animation: rota-andando 0.9s linear infinite;
+  animation: rota-andando 1.6s linear infinite;
 }
 
 @keyframes rota-andando {
-  to { stroke-dashoffset: -17; }
+  to { stroke-dashoffset: -36; }
 }
 
-/* Ícone da lixeira com sombra e destaque por estado */
-.lixeira circle {
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.28));
-  transition: stroke 0.3s;
+/* Ícone da lixeira: corpo branco que enche de cor conforme o nível */
+.lixeira .icone-lixeira {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 
-.lixeira:hover circle,
-.lixeira:focus-visible circle {
-  stroke: #2f80ed;
+.lixeira .corpo-lixeira {
+  fill: #ffffff;
+}
+
+.lixeira .contorno-lixeira {
+  stroke: #111111;
+  transition: stroke 0.2s;
+}
+
+.lixeira .lixo {
+  fill: #1e9e3a;               /* normal: verde */
+  transition: y 0.4s, height 0.4s, fill 0.3s;
+}
+
+.lixeira.atencao .lixo {
+  fill: #f39c12;               /* atenção: laranja */
+}
+
+/* Cheia: lixeira toda vermelha, contorno vinho e listras claras */
+.lixeira.cheia .lixo {
+  fill: #c0392b;
+}
+
+.lixeira.cheia .contorno-lixeira {
+  stroke: #6e1a12;
+}
+
+.lixeira.cheia .listras {
+  stroke: #f5b7b1;
+}
+
+.lixeira.cheia .icone-lixeira {
+  animation: lixeira-alerta 1.2s ease-in-out infinite;
+}
+
+/* Selecionada ou com o mouse em cima: contorno azul */
+.lixeira:hover .contorno-lixeira,
+.lixeira:focus-visible .contorno-lixeira,
+.lixeira.selecionada .contorno-lixeira {
+  stroke: #1a3ccf;
+}
+
+.lixeira.selecionada .icone-lixeira {
+  filter: drop-shadow(0 0 4px rgba(26, 60, 207, 0.7));
 }
 
 .lixeira:focus {
   outline: none;
 }
 
-.lixeira.atencao circle {
-  stroke: var(--yellow);
-}
-
-.lixeira.cheia circle {
-  stroke: var(--red);
-  animation: lixeira-alerta 1.2s ease-in-out infinite;
-}
-
 @keyframes lixeira-alerta {
-  0%, 100% { stroke-width: 3; }
-  50%      { stroke-width: 7; }
+  0%, 100% { filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+  50%      { filter: drop-shadow(0 0 6px rgba(192, 57, 43, 0.95)); }
 }
 
 /* Legenda compacta numa linha, logo abaixo do mapa */
@@ -1519,7 +1551,7 @@ body.caminhao-3d-pronto #caminhao .truck {
 @media (prefers-reduced-motion: reduce) {
   .rota,
   .map-badge-dot,
-  .lixeira.cheia circle {
+  .lixeira.cheia .icone-lixeira {
     animation: none;
   }
 }
@@ -3347,5 +3379,29 @@ body {
   /* Cinco botões: aproxima um pouco para caber na tela do celular */
   .map-panel .dock-botoes:has(.dock-limpar:not([hidden])) {
     gap: 10px;
+  }
+}
+
+/* =========================================================
+   SEM ZOOM ACIDENTAL NO CELULAR
+   ========================================================= */
+/* Toque duplo não dá zoom em botões, links e no mapa */
+*,
+button,
+a,
+label,
+input,
+select,
+svg,
+canvas {
+  touch-action: manipulation;
+}
+
+@media (max-width: 900px) {
+  /* iPhone dá zoom sozinho ao tocar em campos com letra menor que 16px */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
