@@ -197,6 +197,43 @@ mapa.estado.setdefault(
     CAMINHAO_PADRAO.copy()
 )
 
+for _chave, _valor in CAMINHAO_PADRAO.items():
+    mapa.estado["caminhao"].setdefault(_chave, _valor)
+
+# Se o servidor reiniciou no meio de uma ida/volta sem viagem salva,
+# o caminhão volta para a base em vez de ficar preso.
+if (
+    not mapa.estado.get("viagem")
+    and mapa.estado["caminhao"]["estado"] in ("indo_p1", "voltando")
+):
+    mapa.estado["caminhao"].update(CAMINHAO_PADRAO.copy())
+
+
+def p1_sensor_online(agora):
+    """P1 só é tratada como lixeira física se o ESP32 estiver mandando leituras."""
+    p1 = mapa.achar(1)
+    return bool(p1) and mapa.sensor_online(p1, agora)
+
+
+def liberar_caminhao_sem_sensor(agora):
+    """Se o sensor da P1 parar de responder (ou for desligado no site),
+    o caminhão não fica preso esperando na P1: ele volta para a base.
+    O nível da lixeira não é zerado, porque não houve esvaziamento real."""
+    caminhao = mapa.estado["caminhao"]
+
+    if caminhao.get("estado") != "aguardando_p1":
+        return False
+
+    if p1_sensor_online(agora):
+        return False
+
+    print("Sensor da P1 sem sinal. Caminhão voltando à base sem esvaziar.")
+
+    if not iniciar_retorno_fisico(agora):
+        caminhao.update(CAMINHAO_PADRAO.copy())
+
+    return True
+
 
 def agora_ms():
     return int(time.time() * 1000)
@@ -323,7 +360,7 @@ def avancar_viagem(agora):
     viagem = mapa.estado.get("viagem")
 
     if not viagem:
-        return False
+        return liberar_caminhao_sem_sensor(agora)
 
     decorrido = agora * 1000 - viagem["inicio"]
 
@@ -388,6 +425,10 @@ def avancar_viagem(agora):
             if caminhao.get("coleta_confirmada"):
 
                 iniciar_retorno_fisico(agora)
+
+            else:
+
+                liberar_caminhao_sem_sensor(agora)
 
         return mudou
 
@@ -595,13 +636,10 @@ def despachar():
 
         if tipo == "fisica_ida":
 
-            if not automatico:
-                return responder("invalida")
-
             if ids is None or 1 not in ids:
                 return responder("invalida")
 
-            if not mapa.sensor_ativo():
+            if not p1_sensor_online(agora):
                 return responder("sensor_desligado")
 
             caminhao["estado"] = "indo_p1"
@@ -778,14 +816,15 @@ def selecionar_ponto():
 
         caminhao = mapa.estado["caminhao"]
 
-        if (
-            mapa.estado.get("viagem")
-            or caminhao["estado"] != "base"
-        ):
+        if mapa.estado.get("viagem"):
 
             return jsonify({
                 "erro": "Aguarde o caminhão retornar à base para mudar os pontos."
             }), 409
+
+        # Caminhão parado esperando a P1: a P1 continua no mapa.
+        if caminhao["estado"] != "base" and 1 not in pontos:
+            pontos.append(1)
 
         mapa.definir_pontos(
             mapa.estado,
@@ -933,7 +972,7 @@ def coletar(id_):
             abort(404)
 
         # P1 é controlada pelo sensor físico.
-        if id_ == 1 and mapa.sensor_ativo():
+        if id_ == 1 and mapa.sensor_online(lixeira, time.time()):
 
             return jsonify({
                 "erro": "A lixeira física P1 só pode ser esvaziada pela confirmação do sensor."
@@ -967,12 +1006,7 @@ def simular():
 
         for lixeira in lixeiras:
 
-            # Não simula a lixeira física P1.
-            if (
-                int(lixeira["id"]) == 1
-                and mapa.sensor_ativo()
-            ):
-                continue
+            # A lixeira com sensor online (P1 física) usa o valor real.
 
             if not mapa.sensor_online(lixeira, agora):
 
@@ -1051,13 +1085,7 @@ def simulador():
 
                 for lixeira in mapa.estado["lixeiras"]:
 
-                    # P1 recebe dados exclusivamente do ESP32.
-                    if (
-                        int(lixeira["id"]) == 1
-                        and mapa.sensor_ativo()
-                    ):
-                        continue
-
+                    # Lixeira com sensor online recebe dados só do ESP32.
                     if mapa.sensor_online(lixeira, agora):
                         continue
 

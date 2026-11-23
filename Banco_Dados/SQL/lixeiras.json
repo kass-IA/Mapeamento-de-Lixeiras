@@ -1,115 +1,62 @@
 {
-  "sala": {
-    "largura": 810,
-    "altura": 810
-  },
-  "base": {
-    "x": 110,
-    "y": 77
-  },
-  "lixeiras": [
-    {
-      "id": 1,
-      "nome": "Lixeira Ponto 1",
-      "local": "Ponto 1",
-      "x": 740,
-      "y": 142,
-      "ponto": 1,
-      "nivel": 80,
-      "historico": [
-        2,
-        2,
-        2,
-        2,
-        76,
-        68,
-        74,
-        74,
-        74,
-        74,
-        74,
-        80
-      ],
-      "sensor": true,
-      "ultima_leitura": 1795309674.3985014,
-      "pico": 80,
-      "baixas_seguidas": 0,
-      "coletas_sensor": 6,
-      "sensor_online": true
-    }
-  ],
-  "ponto_selecionado": 1,
-  "pontos_selecionados": [
-    1
-  ],
-  "esp32": {
-    "ultimo_contato": 1795309674.3985014,
-    "ponto": 1,
-    "nivel": 80,
-    "distancia_cm": 3.28
-  },
-  "sensor_ativo": true,
-  "viagens_pendentes": [],
-  "chaves_despacho": [
-    "sensor-1-2",
-    "sensor-1-3",
-    "sensor-1-4",
-    "p1-fisica-1795309351952",
-    "p1-fisica-1795309472944",
-    "p1-fisica-1795309675175"
-  ],
-  "viagem": null,
-  "caminhao": {
-    "estado": "aguardando_p1",
-    "rota_ida": [
-      {
-        "x": 110.0,
-        "y": 77.0,
-        "t": 0
-      },
-      {
-        "x": 272.0,
-        "y": 77.0,
-        "t": 1558
-      },
-      {
-        "x": 285.0,
-        "y": 82.0,
-        "t": 1783
-      },
-      {
-        "x": 289.0,
-        "y": 95.0,
-        "t": 2006
-      },
-      {
-        "x": 289.0,
-        "y": 125.0,
-        "t": 2376
-      },
-      {
-        "x": 293.0,
-        "y": 137.0,
-        "t": 2590
-      },
-      {
-        "x": 305.0,
-        "y": 142.0,
-        "t": 2807
-      },
-      {
-        "x": 407.0,
-        "y": 142.0,
-        "t": 3825
-      },
-      {
-        "x": 740.0,
-        "y": 142.0,
-        "t": 6922
-      }
+    "sala": {
+        "largura": 810,
+        "altura": 810
+    },
+    "base": {
+        "x": 110,
+        "y": 77
+    },
+    "lixeiras": [
+        {
+            "id": 1,
+            "nome": "Lixeira Ponto 1",
+            "local": "Ponto 1",
+            "x": 740,
+            "y": 142,
+            "ponto": 1,
+            "nivel": 80,
+            "historico": [
+                2,
+                2,
+                2,
+                2,
+                76,
+                68,
+                74,
+                74,
+                74,
+                74,
+                74,
+                80
+            ],
+            "sensor": true,
+            "ultima_leitura": 1795309674.3985014,
+            "pico": 80,
+            "baixas_seguidas": 0,
+            "coletas_sensor": 6,
+            "sensor_online": true
+        }
     ],
-    "coleta_confirmada": false,
-    "x": 740.0,
-    "y": 142.0
-  }
+    "ponto_selecionado": 1,
+    "pontos_selecionados": [
+        1
+    ],
+    "esp32": {
+        "ultimo_contato": 1795309674.3985014,
+        "ponto": 1,
+        "nivel": 80,
+        "distancia_cm": 3.28
+    },
+    "sensor_ativo": true,
+    "viagens_pendentes": [],
+    "chaves_despacho": [],
+    "viagem": null,
+    "caminhao": {
+        "estado": "base",
+        "rota_ida": null,
+        "coleta_confirmada": false,
+        "x": 110,
+        "y": 77
+    }
 }

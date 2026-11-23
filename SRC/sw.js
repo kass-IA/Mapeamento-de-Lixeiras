@@ -4,7 +4,7 @@
 //   internet, abre a última versão salva.
 // - Os dados das lixeiras (/api/...) nunca são guardados: são sempre ao vivo.
 
-const VERSAO = "lixeiras-v7";
+const VERSAO = "lixeiras-v8";
 
 const ARQUIVOS = [
   "/",

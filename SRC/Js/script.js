@@ -55,6 +55,50 @@ function limitarNivel(nivel) {
   return Math.max(0, Math.min(100, Number(nivel) || 0));
 }
 
+// P1 só é tratada como lixeira física quando a chave do sensor está
+// ligada E o ESP32 está mandando leituras. Sem sinal, ela vira uma
+// lixeira normal do mapa (o caminhão não fica preso esperando).
+function p1ComSensor() {
+  const p1 = lixeiras.find(l => Number(l.id) === 1);
+
+  return Boolean(
+    esp32Info?.ativo &&
+    p1?.sensor_online
+  );
+}
+
+// Prioridade da coleta: se houver lixeiras cheias, vai só nelas.
+// Se não houver nenhuma cheia, vai nas quase cheias.
+function escolherAlvos(lista) {
+  const cheias = lista.filter(
+    l => status(limitarNivel(l.nivel)) === "cheia"
+  );
+
+  if (cheias.length) return cheias;
+
+  return lista.filter(
+    l => status(limitarNivel(l.nivel)) === "atencao"
+  );
+}
+
+// Monta a viagem para as lixeiras escolhidas.
+// Com o sensor online, a P1 tem viagem própria: o caminhão vai até ela
+// e só volta quando o lixo for esvaziado de verdade.
+function planoDaViagem(alvos) {
+  if (p1ComSensor()) {
+
+    const outras = alvos.filter(l => Number(l.id) !== 1);
+
+    if (outras.length) return montarViagem(outras);
+
+    if (alvos.length) return montarViagemFisicaIda();
+
+    return null;
+  }
+
+  return montarViagem(alvos);
+}
+
 // Estima quanto falta para chegar a 100%, usando o histórico simulado.
 function previsao(lixeira) {
   const historico = Array.isArray(lixeira.historico)
@@ -312,15 +356,13 @@ function desenharPainel() {
 
   const p1Fisica =
     Number(lixeira.id) === 1 &&
-    Boolean(esp32Info?.ativo);
+    p1ComSensor();
 
   const botaoColeta = estado === "cheia"
-    ? p1Fisica
-      ? `<div class="alerta">Coleta necessária! Despacho automático pela leitura do ESP32.</div>`
-      : `<div class="alerta">Coleta necessária!</div>
-         <button onclick="despachar([${Number(lixeira.id)}])">
-           Iniciar coleta
-         </button>`
+    ? `<div class="alerta">Coleta necessária!${p1Fisica ? " O caminhão espera a lixeira ser esvaziada de verdade." : ""}</div>
+       <button onclick="despachar([${Number(lixeira.id)}])">
+         Iniciar coleta
+       </button>`
     : "";
 
   painel.innerHTML = `
@@ -745,31 +787,42 @@ function sincronizarViagem(
 
         log("Caminhão estacionado em P1. Aguardando esvaziamento.");
 
-      } else if (
-        viagem.tipo === "fisica_volta" &&
-        caminhaoInfo.estado === "base"
-      ) {
+      } else {
 
-        terminarViagem();
-
-      } else if (
-        viagem.tipo !== "fisica_ida" &&
-        viagem.tipo !== "fisica_volta"
-      ) {
-
+        // O servidor não tem mais viagem: encerra a que está na tela.
         terminarViagem();
 
       }
     }
 
-    if (caminhaoInfo.estado === "aguardando_p1") {
+    // Caminhão parado na P1 esperando o esvaziamento real.
+    if (
+      !viagem &&
+      caminhaoInfo.estado === "aguardando_p1"
+    ) {
       truck.ocupado = true;
+
+      const x = Number(caminhaoInfo.x);
+      const y = Number(caminhaoInfo.y);
+
+      if (
+        Number.isFinite(x) &&
+        Number.isFinite(y) &&
+        (truck.x !== x || truck.y !== y)
+      ) {
+        posicionarCaminhao(x, y, truck.angulo || 0, -1);
+      }
     }
 
+    // Caminhão de volta na base.
     if (
       caminhaoInfo.estado === "base" &&
       !viagem
     ) {
+      if (truck.ocupado) {
+        posicionarCaminhao(BASE.x, BASE.y, 0, -1);
+      }
+
       truck.ocupado = false;
     }
   }
@@ -1029,73 +1082,46 @@ async function despachar(ids, automatico = false, chave) {
 
   if (enviandoDespacho) return;
 
-  const sensorAtivo = Boolean(esp32Info?.ativo);
+  // Quais lixeiras entram na viagem:
+  // - botão de uma lixeira: só ela;
+  // - automático: só as cheias;
+  // - botão Despachar: cheias primeiro; se não houver, as quase cheias.
+  let alvos;
 
-  const p1 = lixeiras.find(
-    l => Number(l.id) === 1
-  );
-
-  // P1: despacho físico automático quando atingir 80%.
-  if (
-    automatico &&
-    sensorAtivo &&
-    p1 &&
-    limitarNivel(p1.nivel) >= 80
-  ) {
-
-    const planoFisico = montarViagemFisicaIda();
-
-    await pedirViagem({
-      ...planoFisico,
-      ids: [1],
-      automatico: true,
-      chave: chave || `p1-fisica-${Date.now()}`
-    });
-
-    return;
+  if (ids) {
+    alvos = lixeiras.filter(l => ids.includes(l.id));
+  } else if (automatico) {
+    alvos = lixeiras.filter(l => status(limitarNivel(l.nivel)) === "cheia");
+  } else {
+    alvos = escolherAlvos(lixeiras);
   }
 
-  // P1 fica fora das viagens normais enquanto o sensor está ativo.
-  // P2, P3, P4 e P5 mantêm o funcionamento original.
-  const alvos = lixeiras.filter(lixeira => {
-
-    if (
-      sensorAtivo &&
-      Number(lixeira.id) === 1
-    ) {
-      return false;
-    }
-
-    if (ids) {
-      return ids.includes(lixeira.id);
-    }
-
-    if (automatico) {
-      return limitarNivel(lixeira.nivel) >= 80;
-    }
-
-    return true;
-  });
-
-  const plano = montarViagem(alvos);
+  const plano = planoDaViagem(alvos);
 
   if (!plano && !truck.ocupado) {
 
     if (!automatico) {
 
-      log("Nenhuma lixeira posicionada. Marque um ou mais pontos.");
+      log(
+        lixeiras.length
+          ? "Nenhuma lixeira cheia ou quase cheia para coletar agora."
+          : "Nenhuma lixeira posicionada. Marque um ou mais pontos."
+      );
 
       sacudir($("btn-despachar"));
+      sacudir($("dock-despachar"));
     }
 
     return;
   }
 
+  const fisica = plano?.tipo === "fisica_ida";
+
   await pedirViagem({
     ...(plano || {}),
-    ids: ids || null,
+    ids: fisica ? [1] : (ids || null),
     automatico,
-    chave
+    chave: chave || (fisica ? `p1-fisica-${Date.now()}` : undefined)
   });
 }
 
@@ -1146,14 +1172,11 @@ async function despacharDaFila() {
 
   if (caminhaoInfo.estado !== "base") return;
 
-  const plano = montarViagem(
-    lixeiras.filter(
-      l => !(esp32Info?.ativo && Number(l.id) === 1)
-    )
-  );
+  const plano = planoDaViagem(escolherAlvos(lixeiras));
 
   await pedirViagem({
     ...(plano || {}),
+    ...(plano?.tipo === "fisica_ida" ? { ids: [1] } : {}),
     fila: true
   });
 }
@@ -1264,9 +1287,9 @@ function atualizarBotoes() {
 
   if (seletor) {
 
-    seletor.disabled = truck.ocupado;
+    seletor.disabled = Boolean(viagem);
 
-    seletor.title = truck.ocupado
+    seletor.title = viagem
       ? "Aguarde o caminhão voltar para mudar os pontos."
       : "";
   }
@@ -1304,8 +1327,9 @@ function atualizarBotoes() {
     $("dock-limpar").hidden = !temFila;
   }
 
+  // Os pontos só ficam travados com o caminhão andando.
   $("dock-pontos")?.querySelectorAll("button").forEach(b => {
-    b.disabled = truck.ocupado;
+    b.disabled = Boolean(viagem);
   });
 
   if (!botao) return;
