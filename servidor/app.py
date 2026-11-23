@@ -209,9 +209,20 @@ if (
     mapa.estado["caminhao"].update(CAMINHAO_PADRAO.copy())
 
 
+def id_fisica():
+    """Ponto da lixeira real: o ponto que o ESP32 informa nas leituras.
+    (Antes era sempre a P1; agora segue o ponto configurado na placa.)"""
+    ponto = (mapa.estado.get("esp32") or {}).get("ponto")
+    try:
+        ponto = int(ponto)
+    except (TypeError, ValueError):
+        return 1
+    return ponto if 1 <= ponto <= 5 else 1
+
+
 def p1_sensor_online(agora):
-    """P1 só é tratada como lixeira física se o ESP32 estiver mandando leituras."""
-    p1 = mapa.achar(1)
+    """A lixeira física só é tratada assim se o ESP32 estiver mandando leituras."""
+    p1 = mapa.achar(id_fisica())
     return bool(p1) and mapa.sensor_online(p1, agora)
 
 
@@ -636,7 +647,7 @@ def despachar():
 
         if tipo == "fisica_ida":
 
-            if ids is None or 1 not in ids:
+            if ids is None or id_fisica() not in ids:
                 return responder("invalida")
 
             if not p1_sensor_online(agora):
@@ -823,8 +834,8 @@ def selecionar_ponto():
             }), 409
 
         # Caminhão parado esperando a P1: a P1 continua no mapa.
-        if caminhao["estado"] != "base" and 1 not in pontos:
-            pontos.append(1)
+        if caminhao["estado"] != "base" and id_fisica() not in pontos:
+            pontos.append(id_fisica())
 
         mapa.definir_pontos(
             mapa.estado,
@@ -940,7 +951,7 @@ def leitura():
         )
 
         # Só P1 controla o retorno do caminhão físico.
-        if esvaziou and int(lixeira["id"]) == 1:
+        if esvaziou and int(lixeira["id"]) == id_fisica():
 
             tratar_esvaziamento_p1(agora)
 
@@ -972,7 +983,7 @@ def coletar(id_):
             abort(404)
 
         # P1 é controlada pelo sensor físico.
-        if id_ == 1 and mapa.sensor_online(lixeira, time.time()):
+        if id_ == id_fisica() and mapa.sensor_online(lixeira, time.time()):
 
             return jsonify({
                 "erro": "A lixeira física P1 só pode ser esvaziada pela confirmação do sensor."

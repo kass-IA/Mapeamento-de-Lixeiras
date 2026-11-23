@@ -58,8 +58,14 @@ function limitarNivel(nivel) {
 // P1 só é tratada como lixeira física quando a chave do sensor está
 // ligada E o ESP32 está mandando leituras. Sem sinal, ela vira uma
 // lixeira normal do mapa (o caminhão não fica preso esperando).
+// Ponto da lixeira real (o ponto que o ESP32 informa).
+function idFisica() {
+  const ponto = Number(esp32Info?.ponto);
+  return ponto >= 1 && ponto <= 5 ? ponto : 1;
+}
+
 function p1ComSensor() {
-  const p1 = lixeiras.find(l => Number(l.id) === 1);
+  const p1 = lixeiras.find(l => Number(l.id) === idFisica());
 
   return Boolean(
     esp32Info?.ativo &&
@@ -87,7 +93,7 @@ function escolherAlvos(lista) {
 function planoDaViagem(alvos) {
   if (p1ComSensor()) {
 
-    const outras = alvos.filter(l => Number(l.id) !== 1);
+    const outras = alvos.filter(l => Number(l.id) !== idFisica());
 
     if (outras.length) return montarViagem(outras);
 
@@ -355,7 +361,7 @@ function desenharPainel() {
     .join("");
 
   const p1Fisica =
-    Number(lixeira.id) === 1 &&
+    Number(lixeira.id) === idFisica() &&
     p1ComSensor();
 
   const botaoColeta = estado === "cheia"
@@ -624,7 +630,7 @@ function montarViagemFisicaIda() {
   andar(trechoBase());
 
   andar(
-    caminhoEntre("J1", "P1").slice(1)
+    caminhoEntre("J1", `P${idFisica()}`).slice(1)
   );
 
   return {
@@ -718,7 +724,7 @@ function sincronizarViagem(
 
       if (nova.tipo === "fisica_ida") {
 
-        log("Caminhão a caminho da lixeira física P1.");
+        log(`Caminhão a caminho da lixeira real P${idFisica()}.`);
 
       } else if (nova.tipo === "fisica_volta") {
 
@@ -785,7 +791,7 @@ function sincronizarViagem(
 
         desenharRotaRestante(null);
 
-        log("Caminhão estacionado em P1. Aguardando esvaziamento.");
+        log(`Caminhão estacionado em P${idFisica()}. Aguardando esvaziamento.`);
 
       } else {
 
@@ -1027,7 +1033,7 @@ function animarViagem() {
 
       desenharRotaRestante(null);
 
-      log("Caminhão estacionado em P1. Aguardando esvaziamento.");
+      log(`Caminhão estacionado em P${idFisica()}. Aguardando esvaziamento.`);
 
       atualizarTudo();
       atualizarBotoes();
@@ -1119,7 +1125,7 @@ async function despachar(ids, automatico = false, chave) {
 
   await pedirViagem({
     ...(plano || {}),
-    ids: fisica ? [1] : (ids || null),
+    ids: fisica ? [idFisica()] : (ids || null),
     automatico,
     chave: chave || (fisica ? `p1-fisica-${Date.now()}` : undefined)
   });
@@ -1176,7 +1182,7 @@ async function despacharDaFila() {
 
   await pedirViagem({
     ...(plano || {}),
-    ...(plano?.tipo === "fisica_ida" ? { ids: [1] } : {}),
+    ...(plano?.tipo === "fisica_ida" ? { ids: [idFisica()] } : {}),
     fila: true
   });
 }
@@ -1343,7 +1349,7 @@ function atualizarBotoes() {
 
     if (caminhaoInfo.estado === "aguardando_p1") {
 
-      legenda.textContent = "Aguardando esvaziamento da P1";
+      legenda.textContent = `Aguardando esvaziamento da P${idFisica()}`;
 
     } else if (caminhaoInfo.estado === "voltando") {
 
@@ -2333,10 +2339,10 @@ function verificarSensores() {
 
       coletasVistas[id] = coletas;
 
-      if (Number(id) === 1) {
+      if (Number(id) === idFisica()) {
 
         log(
-          "🧹 P1 foi esvaziada pelo sensor. " +
+          `🧹 P${idFisica()} foi esvaziada pelo sensor. ` +
           "O caminhão está retornando à base."
         );
 
