@@ -35,7 +35,7 @@ const char* WIFI_SENHA = "SENHA_DO_WIFI";
 // Para onde enviar as leituras (escolha UM):
 //  - Servidor no computador (mesmo Wi-Fi):  "http://192.168.18.20:5000"
 //  - Site publicado:                        "https://lixeira-inteligente.onrender.com"
-const char* SERVIDOR = "http://192.168.18.20:5000";
+const char* SERVIDOR = "https://lixeira-inteligente.onrender.com";
 
 // Em qual ponto do mapa esta lixeira está (1 a 5).
 const int LIXEIRA_PONTO = 1;
