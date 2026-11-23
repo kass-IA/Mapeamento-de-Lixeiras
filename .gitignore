@@ -3,3 +3,6 @@ __pycache__/
 
 # Modelo 3D original (67 MB). O site usa a versão leve caminhao_verde_leve.glb.
 SRC/images/caminhao_verde.glb
+
+# Configurações locais
+.claude/settings.local.json

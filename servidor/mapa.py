@@ -1,5 +1,3 @@
-
-
 import json
 import os
 import threading
@@ -21,10 +19,10 @@ lock = threading.Lock()
 # Coordenadas dos cinco pontos no mapa 810x810.
 PONTOS = {
     1: {"x": 740, "y": 142},
-    2: {"x": 59,  "y": 321},
+    2: {"x": 59, "y": 321},
     3: {"x": 407, "y": 321},
     4: {"x": 750, "y": 321},
-    5: {"x": 59,  "y": 489}
+    5: {"x": 59, "y": 489}
 }
 
 
@@ -39,7 +37,6 @@ PADRAO = {
         "y": 77
     },
 
-    # Pontos do mapa que têm lixeira (pode ser mais de um).
     "pontos_selecionados": [],
     "lixeiras": []
 }
@@ -60,12 +57,18 @@ def salvar(dados):
         )
 
 
-# Campos que só existem nas lixeiras com sensor ESP32.
-CAMPOS_SENSOR = ("sensor", "ultima_leitura", "pico", "baixas_seguidas", "coletas_sensor")
+# Campos exclusivos das lixeiras com sensor ESP32.
+CAMPOS_SENSOR = (
+    "sensor",
+    "ultima_leitura",
+    "pico",
+    "baixas_seguidas",
+    "coletas_sensor"
+)
 
-# Regras para perceber que a lixeira foi esvaziada de verdade:
-# estava com pelo menos ESVAZIAR_DE % e caiu para no máximo ESVAZIAR_ATE %,
-# confirmado em LEITURAS_CONFIRMACAO leituras seguidas (evita leitura falsa).
+# Regras para confirmar o esvaziamento:
+# A lixeira precisa ter atingido pelo menos 50%.
+# Depois, precisa receber duas leituras consecutivas abaixo de 15%.
 ESVAZIAR_DE = 50
 ESVAZIAR_ATE = 15
 LEITURAS_CONFIRMACAO = 2
@@ -75,11 +78,7 @@ SENSOR_OFFLINE_APOS = 30
 
 
 def nova_lixeira(ponto, anterior=None):
-    """Cria (ou atualiza) a lixeira de um ponto.
-
-    Cada ponto tem a sua lixeira, com id igual ao número do ponto.
-    Se já existia uma lixeira nesse ponto, mantém o nível e o histórico.
-    """
+    """Cria ou atualiza a lixeira de um ponto."""
     anterior = anterior or {}
     nivel = max(0, min(100, int(anterior.get("nivel", 0))))
 
@@ -92,7 +91,7 @@ def nova_lixeira(ponto, anterior=None):
         "ponto": ponto,
         "nivel": nivel,
         "historico": anterior.get("historico", [nivel])[-12:],
-        # Dados do sensor físico (ESP32), mantidos ao trocar os pontos.
+
         **{
             chave: anterior[chave]
             for chave in CAMPOS_SENSOR
@@ -102,7 +101,7 @@ def nova_lixeira(ponto, anterior=None):
 
 
 def definir_pontos(dados, pontos):
-    """Deixa uma lixeira em cada ponto escolhido (em ordem crescente)."""
+    """Deixa uma lixeira em cada ponto escolhido."""
     pontos = sorted({p for p in pontos if p in PONTOS})
 
     existentes = {
@@ -112,8 +111,8 @@ def definir_pontos(dados, pontos):
     }
 
     dados["pontos_selecionados"] = pontos
-    # Mantido para compatibilidade com versões antigas.
     dados["ponto_selecionado"] = pontos[0] if pontos else None
+
     dados["lixeiras"] = [
         nova_lixeira(p, existentes.get(p))
         for p in pontos
@@ -127,12 +126,11 @@ def carregar():
 
         pontos = dados.get("pontos_selecionados")
 
-        # Arquivo antigo: só tinha um ponto selecionado.
+        # Compatibilidade com arquivos antigos.
         if pontos is None:
             antigo = dados.get("ponto_selecionado")
             pontos = [antigo] if antigo in PONTOS else []
 
-            # A lixeira antiga passa a ser a lixeira desse ponto.
             for lixeira in dados.get("lixeiras", []):
                 if antigo in PONTOS:
                     lixeira["ponto"] = antigo
@@ -141,7 +139,9 @@ def carregar():
             "largura": 810,
             "altura": 810
         }
+
         dados.setdefault("base", PADRAO["base"].copy())
+
         definir_pontos(dados, pontos)
 
         salvar(dados)
@@ -175,38 +175,58 @@ def registrar_nivel(lixeira, nivel):
 
 
 def registrar_leitura_sensor(lixeira, nivel, agora):
-    """Registra uma leitura do ESP32 e diz se a lixeira acabou de ser esvaziada."""
+    """
+    Registra uma leitura do ESP32.
+
+    Confirma o esvaziamento somente depois de duas leituras
+    consecutivas estritamente abaixo de 15%.
+    """
     nivel = max(0, min(100, int(nivel)))
 
     lixeira["sensor"] = True
     lixeira["ultima_leitura"] = agora
-    lixeira["pico"] = max(int(lixeira.get("pico", 0)), nivel)
+    lixeira["pico"] = max(
+        int(lixeira.get("pico", 0)),
+        nivel
+    )
 
     esvaziou = False
 
-    if lixeira["pico"] >= ESVAZIAR_DE and nivel <= ESVAZIAR_ATE:
-        lixeira["baixas_seguidas"] = int(lixeira.get("baixas_seguidas", 0)) + 1
+    if (
+        lixeira["pico"] >= ESVAZIAR_DE
+        and nivel < ESVAZIAR_ATE
+    ):
+        lixeira["baixas_seguidas"] = (
+            int(lixeira.get("baixas_seguidas", 0)) + 1
+        )
 
         if lixeira["baixas_seguidas"] >= LEITURAS_CONFIRMACAO:
             esvaziou = True
-            lixeira["coletas_sensor"] = int(lixeira.get("coletas_sensor", 0)) + 1
+
+            lixeira["coletas_sensor"] = (
+                int(lixeira.get("coletas_sensor", 0)) + 1
+            )
+
             lixeira["pico"] = nivel
             lixeira["baixas_seguidas"] = 0
+
     else:
         lixeira["baixas_seguidas"] = 0
 
     registrar_nivel(lixeira, nivel)
+
     return esvaziou
 
 
 def sensor_ativo():
-    """Chave "Sensor ESP32" do site (ligado/desligado)."""
+    """Chave Sensor ESP32 do site."""
     return bool(estado.get("sensor_ativo", False))
 
 
 def sensor_online(lixeira, agora):
-    """Lixeira com sensor ligado no site E recebendo leituras."""
+    """Verifica se a lixeira está recebendo leituras."""
     ultima = lixeira.get("ultima_leitura")
+
     return (
         sensor_ativo()
         and bool(ultima)
@@ -215,26 +235,32 @@ def sensor_online(lixeira, agora):
 
 
 def registrar_contato_esp32(id_, nivel, distancia, agora):
-    """Guarda o último contato do ESP32, mesmo com a chave desligada."""
+    """Guarda o último contato do ESP32."""
     estado["esp32"] = {
         "ultimo_contato": agora,
         "ponto": id_,
         "nivel": nivel,
-        "distancia_cm": distancia,
+        "distancia_cm": distancia
     }
 
 
 def resumo_esp32(agora):
     """Situação do ESP32 para mostrar no site."""
     contato = estado.get("esp32") or {}
+
     ultimo = contato.get("ultimo_contato")
-    segundos = None if not ultimo else int(agora - float(ultimo))
+    segundos = None if not ultimo else int(
+        agora - float(ultimo)
+    )
 
     return {
         "ativo": sensor_ativo(),
-        "online": segundos is not None and segundos <= SENSOR_OFFLINE_APOS,
+        "online": (
+            segundos is not None
+            and segundos <= SENSOR_OFFLINE_APOS
+        ),
         "segundos": segundos,
         "ponto": contato.get("ponto"),
         "nivel": contato.get("nivel"),
-        "distancia_cm": contato.get("distancia_cm"),
+        "distancia_cm": contato.get("distancia_cm")
     }
